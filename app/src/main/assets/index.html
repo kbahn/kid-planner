@@ -1199,10 +1199,11 @@ window.onUpdateProgress = function(st){
   if(st==="start") S.updState = "준비 중…";
   else if(st==="need_permission") S.updState = "‘이 출처 허용’을 켜고 뒤로 돌아오면 자동으로 이어서 받아요";
   else if(st.startsWith("progress:")) S.updState = "내려받는 중 " + st.slice(9) + "%";
+  else if(st.startsWith("bytes:")) S.updState = "내려받는 중 " + (Math.round(+st.slice(6)/102.4)/10) + "MB";
   else if(st==="installing") S.updState = "설치 화면을 열었어요. ‘설치’ 또는 ‘업데이트’를 눌러 주세요";
   else if(st.startsWith("error")){ S.updState = "받지 못했어요" + (st.length>6 ? " ("+st.slice(6)+")" : "") + ". ‘브라우저로 받기’를 눌러 주세요"; S.updateFailed = true; }
-  toast(S.updState);
-  if(st==="start"){ updTimer = setTimeout(()=>{ if(S.updState==="준비 중…"){ S.updState = "반응이 없어요. ‘브라우저로 받기’를 눌러 주세요"; S.updateFailed = true; render(); } }, 8000); }
+  if(!st.startsWith("progress:") && !st.startsWith("bytes:")) toast(S.updState);
+  if(st==="start"){ updTimer = setTimeout(()=>{ if(S.updState==="준비 중…"){ S.updState = "연결이 안 돼요. 인터넷을 확인하거나 ‘브라우저로 받기’를 눌러 주세요"; S.updateFailed = true; render(); } }, 20000); }
   render();
 };
 function checkUpdate(){ if(!HasAndroid || !window.Android.checkUpdate) return; S.updateChecking = true; safe(()=>Android.checkUpdate()); }

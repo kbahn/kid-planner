@@ -2,7 +2,6 @@ package kr.kidplanner.app;
 
 import android.app.Activity;
 import android.appwidget.AppWidgetManager;
-import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
@@ -38,7 +37,6 @@ public class MainActivity extends Activity {
     private static final String START_URL = "https://" + APP_HOST + "/assets/index.html";
     /** 새 버전을 확인할 GitHub 저장소 (공개 저장소여야 확인 가능). */
     static final String UPDATE_REPO = "kbahn/kid-planner";
-    private long downloadId = -1;
 
     private WebView webView;
     private SharedPreferences prefs;
@@ -216,8 +214,10 @@ public class MainActivity extends Activity {
     }
 
     private String pendingUrl = null, pendingVersion = null;
-    private final android.os.Handler pollHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
+    private volatile boolean downloading = false;
+
+    /** 앱이 직접 APK를 내려받아(진행률 표시) 설치 화면을 연다. */
     private void downloadAndInstall(String url, String version) {
         try {
             js("onUpdateProgress", "start");
@@ -230,60 +230,68 @@ public class MainActivity extends Activity {
                 return;
             }
             pendingUrl = null;
-            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-            final String name = "update-" + (version == null || version.isEmpty() ? "new" : version) + ".apk";
-            final java.io.File dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-            if (dir == null) throw new IllegalStateException("저장 공간을 찾을 수 없어요");
+            if (downloading) return;
+            downloading = true;
+            final java.io.File dir = new java.io.File(getCacheDir(), "updates");
             //noinspection ResultOfMethodCallIgnored
             dir.mkdirs();
-            final java.io.File out = new java.io.File(dir, name);
-            if (out.exists()) //noinspection ResultOfMethodCallIgnored
-                out.delete();
-            DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
-            r.setTitle(getString(R.string.app_name) + " 업데이트");
-            r.setMimeType("application/vnd.android.package-archive");
-            r.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, name);
-            r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
-            downloadId = dm.enqueue(r);
-            pollDownload(dm, downloadId, out, 0);
+            final java.io.File out = new java.io.File(dir, "update.apk");
+            new Thread(() -> {
+                java.net.HttpURLConnection con = null;
+                try {
+                    if (out.exists()) //noinspection ResultOfMethodCallIgnored
+                        out.delete();
+                    String u = url;
+                    int code = 0;
+                    for (int hop = 0; hop < 6; hop++) {   // GitHub → 파일 서버로 넘겨주는 주소를 직접 따라감
+                        con = (java.net.HttpURLConnection) new java.net.URL(u).openConnection();
+                        con.setInstanceFollowRedirects(false);
+                        con.setConnectTimeout(15000);
+                        con.setReadTimeout(30000);
+                        con.setRequestProperty("User-Agent", "kid-planner-app");
+                        code = con.getResponseCode();
+                        if (code >= 300 && code < 400) {
+                            String loc = con.getHeaderField("Location");
+                            con.disconnect();
+                            if (loc == null) break;
+                            u = new java.net.URL(new java.net.URL(u), loc).toString();
+                            continue;
+                        }
+                        break;
+                    }
+                    if (code != 200) throw new java.io.IOException("서버 응답 " + code);
+                    long total = con.getContentLengthLong();
+                    js("onUpdateProgress", "progress:0");
+                    java.io.InputStream in = new java.io.BufferedInputStream(con.getInputStream());
+                    java.io.OutputStream os = new java.io.FileOutputStream(out);
+                    byte[] buf = new byte[16384];
+                    long got = 0, lastSent = 0;
+                    int n;
+                    while ((n = in.read(buf)) > 0) {
+                        os.write(buf, 0, n);
+                        got += n;
+                        long now = System.currentTimeMillis();
+                        if (now - lastSent > 300) {
+                            lastSent = now;
+                            js("onUpdateProgress", total > 0 ? "progress:" + (got * 100 / total) : "bytes:" + (got / 1024));
+                        }
+                    }
+                    os.close();
+                    in.close();
+                    if (total > 0 && got != total) throw new java.io.IOException("파일이 덜 받아졌어요");
+                    js("onUpdateProgress", "progress:100");
+                    runOnUiThread(() -> installApk(out));
+                } catch (Exception e) {
+                    js("onUpdateProgress", "error:" + e.getMessage());
+                } finally {
+                    if (con != null) con.disconnect();
+                    downloading = false;
+                }
+            }).start();
         } catch (Exception e) {
+            downloading = false;
             js("onUpdateProgress", "error:" + e.getClass().getSimpleName() + " " + e.getMessage());
         }
-    }
-
-    /** 0.7초마다 내려받기 상태를 확인해 화면에 알려 주고, 끝나면 설치 화면을 연다. */
-    private void pollDownload(DownloadManager dm, long id, java.io.File out, int tick) {
-        pollHandler.postDelayed(() -> {
-            if (id != downloadId) return;
-            int status = -1;
-            long got = 0, total = 0;
-            String reason = "";
-            android.database.Cursor c = null;
-            try {
-                c = dm.query(new DownloadManager.Query().setFilterById(id));
-                if (c != null && c.moveToFirst()) {
-                    status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
-                    got = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
-                    total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
-                    reason = String.valueOf(c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON)));
-                }
-            } catch (Exception e) {
-                js("onUpdateProgress", "error:" + e.getMessage());
-                return;
-            } finally {
-                if (c != null) c.close();
-            }
-            if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                js("onUpdateProgress", "progress:100");
-                installApk(out);
-            } else if (status == DownloadManager.STATUS_FAILED || status == -1) {
-                js("onUpdateProgress", "error:내려받기 실패 (" + reason + ")");
-            } else {
-                if (total > 0) js("onUpdateProgress", "progress:" + (got * 100 / total));
-                if (tick < 600) pollDownload(dm, id, out, tick + 1);
-                else js("onUpdateProgress", "error:시간 초과");
-            }
-        }, 700);
     }
 
     private void installApk(java.io.File f) {
@@ -301,7 +309,6 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        pollHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
 
