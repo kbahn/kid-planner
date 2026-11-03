@@ -39,7 +39,8 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 nav.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;background:var(--card);padding:6px;border-radius:16px;border:1px solid var(--line)}
 nav.tabs a{flex:1;min-width:90px;text-align:center;text-decoration:none;color:var(--text2);padding:10px 12px;border-radius:11px;font-weight:700;font-size:15px;white-space:nowrap}
 nav.tabs a.on{background:var(--text);color:#fff}
-nav.tabs a .lock{font-size:12px;opacity:.7}
+nav.tabs a .lock{font-size:11px;opacity:.7;margin-left:2px}
+nav.tabs a .ls{display:none}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:14px}
 .card h2{margin:0 0 12px;font-size:18px;font-weight:700}
 .card h3{margin:14px 0 8px;font-size:15px;color:var(--text2)}
@@ -192,7 +193,9 @@ table.list td.num{text-align:right;font-variant-numeric:tabular-nums}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;display:none;z-index:60}
 @media (max-width:640px){
   nav.tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:5px;border-radius:14px}
-  nav.tabs a{min-width:0;padding:9px 2px;font-size:13px;border-radius:10px;overflow:hidden;text-overflow:ellipsis}
+  nav.tabs a{min-width:0;padding:9px 2px;font-size:13.5px;border-radius:10px;white-space:nowrap}
+  nav.tabs a .lf{display:none} nav.tabs a .ls{display:inline}
+  nav.tabs a .lock{font-size:9px}
   .weekgrid{grid-template-columns:repeat(7,minmax(70px,1fr));overflow-x:auto}
   .hbar{grid-template-columns:96px 1fr 80px}
   .item{grid-template-columns:70px 1fr}
@@ -493,13 +496,13 @@ function saveSeries(list){
 
 /* ===================== UI: shell ===================== */
 const VIEWS = [
-  {id:"today",  label:"🙋 오늘 할 일", locked:false},
-  {id:"books",  label:"📚 독서", locked:false},
-  {id:"review", label:"💬 주간 리뷰", locked:false},
-  {id:"parent", label:"👀 보호자 현황", locked:true},
-  {id:"stats",  label:"📊 통계", locked:true},
-  {id:"edit",   label:"🛠 일정 관리", locked:true},
-  {id:"settings", label:"⚙ 설정", locked:true},
+  {id:"today",  label:"🙋 오늘 할 일", short:"🙋 오늘", locked:false},
+  {id:"books",  label:"📚 독서", short:"📚 독서", locked:false},
+  {id:"review", label:"💬 주간 리뷰", short:"💬 리뷰", locked:false},
+  {id:"parent", label:"👀 보호자 현황", short:"👀 현황", locked:true},
+  {id:"stats",  label:"📊 통계", short:"📊 통계", locked:true},
+  {id:"edit",   label:"🛠 일정 관리", short:"🛠 일정", locked:true},
+  {id:"settings", label:"⚙ 설정", short:"⚙ 설정", locked:true},
 ];
 function needPin(){ return !!S.settings.pin && !S.unlocked; }
 function renderTabs(){
@@ -509,8 +512,8 @@ function renderTabs(){
   const sub = document.getElementById("brandsub"); if(sub) sub.textContent = S.role==="parent" ? "보호자" : S.role==="kid" ? "아이 탭" : "";
   const dev = document.getElementById("devbtns");
   if(dev) dev.innerHTML = "";
-  tabsEl.innerHTML = VIEWS.map(v=>`<a href="#${v.id}" class="${S.view===v.id?"on":""}">${v.label}${v.locked&&needPin()?' <span class="lock">🔒</span>':""}</a>`).join("")
-    + (S.role!=="parent" && S.settings.pin && S.unlocked ? `<a href="#" data-act="lock" style="flex:0;min-width:auto">🔒 잠그기</a>` : "");
+  tabsEl.innerHTML = VIEWS.map(v=>`<a href="#${v.id}" class="${S.view===v.id?"on":""}"><span class="lf">${v.label}</span><span class="ls">${v.short||v.label}</span>${v.locked&&needPin()?'<span class="lock">🔒</span>':""}</a>`).join("")
+    + (S.role!=="parent" && S.settings.pin && S.unlocked ? `<a href="#" data-act="lock" style="flex:0;min-width:auto"><span class="lf">🔒 잠그기</span><span class="ls">🔒 잠금</span></a>` : "");
 }
 function renderStatus(){
   const el = document.getElementById("status"); let h = "";
