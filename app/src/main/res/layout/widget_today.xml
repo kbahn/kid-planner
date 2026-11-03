@@ -23,7 +23,7 @@
             android:layout_weight="1"
             android:maxLines="1"
             android:ellipsize="end"
-            android:textSize="16dp"
+            android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="#1D1C1A" />
         <TextView
@@ -31,7 +31,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFeatureSettings="tnum"
-            android:textSize="14dp"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:textColor="#1D1C1A" />
     </LinearLayout>
@@ -55,7 +55,7 @@
         android:layout_marginBottom="4dp"
         android:maxLines="2"
         android:ellipsize="end"
-        android:textSize="13dp"
+        android:textSize="13sp"
         android:textColor="#55534E" />
 
     <!-- 할 일 목록: 상태 이모지 | 시간 | 일정 | 체크 시각 -->
@@ -82,14 +82,14 @@
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:maxLines="1"
-                android:textSize="13dp" />
+                android:textSize="13sp" />
             <TextView
                 android:id="@+id/w_row1_time"
                 android:layout_width="58dp"
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="13dp"
+                android:textSize="13sp"
                 android:textColor="#8D8A83" />
             <TextView
                 android:id="@+id/w_row1_title"
@@ -98,7 +98,7 @@
                 android:layout_weight="1"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="14dp"
+                android:textSize="14sp"
                 android:textColor="#1D1C1A" />
             <TextView
                 android:id="@+id/w_row1_at"
@@ -108,7 +108,7 @@
                 android:gravity="end"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="12dp"
+                android:textSize="12sp"
                 android:textColor="#8D8A83" />
         </LinearLayout>
         <LinearLayout
@@ -128,14 +128,14 @@
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:maxLines="1"
-                android:textSize="13dp" />
+                android:textSize="13sp" />
             <TextView
                 android:id="@+id/w_row2_time"
                 android:layout_width="58dp"
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="13dp"
+                android:textSize="13sp"
                 android:textColor="#8D8A83" />
             <TextView
                 android:id="@+id/w_row2_title"
@@ -144,7 +144,7 @@
                 android:layout_weight="1"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="14dp"
+                android:textSize="14sp"
                 android:textColor="#1D1C1A" />
             <TextView
                 android:id="@+id/w_row2_at"
@@ -154,7 +154,7 @@
                 android:gravity="end"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="12dp"
+                android:textSize="12sp"
                 android:textColor="#8D8A83" />
         </LinearLayout>
         <LinearLayout
@@ -174,14 +174,14 @@
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:maxLines="1"
-                android:textSize="13dp" />
+                android:textSize="13sp" />
             <TextView
                 android:id="@+id/w_row3_time"
                 android:layout_width="58dp"
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="13dp"
+                android:textSize="13sp"
                 android:textColor="#8D8A83" />
             <TextView
                 android:id="@+id/w_row3_title"
@@ -190,7 +190,7 @@
                 android:layout_weight="1"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="14dp"
+                android:textSize="14sp"
                 android:textColor="#1D1C1A" />
             <TextView
                 android:id="@+id/w_row3_at"
@@ -200,7 +200,7 @@
                 android:gravity="end"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="12dp"
+                android:textSize="12sp"
                 android:textColor="#8D8A83" />
         </LinearLayout>
         <LinearLayout
@@ -220,14 +220,14 @@
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:maxLines="1"
-                android:textSize="13dp" />
+                android:textSize="13sp" />
             <TextView
                 android:id="@+id/w_row4_time"
                 android:layout_width="58dp"
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="13dp"
+                android:textSize="13sp"
                 android:textColor="#8D8A83" />
             <TextView
                 android:id="@+id/w_row4_title"
@@ -236,7 +236,7 @@
                 android:layout_weight="1"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="14dp"
+                android:textSize="14sp"
                 android:textColor="#1D1C1A" />
             <TextView
                 android:id="@+id/w_row4_at"
@@ -246,7 +246,7 @@
                 android:gravity="end"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="12dp"
+                android:textSize="12sp"
                 android:textColor="#8D8A83" />
         </LinearLayout>
         <LinearLayout
@@ -266,14 +266,14 @@
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:maxLines="1"
-                android:textSize="13dp" />
+                android:textSize="13sp" />
             <TextView
                 android:id="@+id/w_row5_time"
                 android:layout_width="58dp"
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="13dp"
+                android:textSize="13sp"
                 android:textColor="#8D8A83" />
             <TextView
                 android:id="@+id/w_row5_title"
@@ -282,7 +282,7 @@
                 android:layout_weight="1"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="14dp"
+                android:textSize="14sp"
                 android:textColor="#1D1C1A" />
             <TextView
                 android:id="@+id/w_row5_at"
@@ -292,7 +292,7 @@
                 android:gravity="end"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="12dp"
+                android:textSize="12sp"
                 android:textColor="#8D8A83" />
         </LinearLayout>
         <LinearLayout
@@ -312,14 +312,14 @@
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:maxLines="1"
-                android:textSize="13dp" />
+                android:textSize="13sp" />
             <TextView
                 android:id="@+id/w_row6_time"
                 android:layout_width="58dp"
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="13dp"
+                android:textSize="13sp"
                 android:textColor="#8D8A83" />
             <TextView
                 android:id="@+id/w_row6_title"
@@ -328,7 +328,7 @@
                 android:layout_weight="1"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textSize="14dp"
+                android:textSize="14sp"
                 android:textColor="#1D1C1A" />
             <TextView
                 android:id="@+id/w_row6_at"
@@ -338,7 +338,7 @@
                 android:gravity="end"
                 android:maxLines="1"
                 android:fontFeatureSettings="tnum"
-                android:textSize="12dp"
+                android:textSize="12sp"
                 android:textColor="#8D8A83" />
         </LinearLayout>
     </LinearLayout>
@@ -354,7 +354,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:textSize="11dp"
+            android:textSize="11sp"
             android:textColor="#8D8A83" />
         <TextView
             android:id="@+id/w_refresh"
@@ -364,7 +364,7 @@
             android:paddingTop="6dp"
             android:paddingBottom="2dp"
             android:text="새로고침"
-            android:textSize="12dp"
+            android:textSize="12sp"
             android:textStyle="bold"
             android:textColor="#2A78D6" />
     </LinearLayout>
