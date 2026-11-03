@@ -1064,8 +1064,11 @@ const AppDB = {
 };
 function withTimeout(p, ms, msg){ return Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg||"시간이 너무 오래 걸려요")), ms))]); }
 function parseConfig(txt){
-  const cfg = {}; const re = /["']?(apiKey|authDomain|projectId|storageBucket|messagingSenderId|appId)["']?\s*:\s*["']([^"']+)["']/g; let m;
-  while((m = re.exec(txt||""))) cfg[m[1]] = m[2].trim();
+  // 카톡·메모 앱이 바꾼 둥근 따옴표, 전각 콜론, 보이지 않는 공백까지 정리
+  txt = String(txt||"").replace(/[\u201C\u201D\u201E\u201F\u2033\u00AB\u00BB]/g,'"').replace(/[\u2018\u2019\u201A\u201B\u2032`]/g,"'")
+    .replace(/\uFF1A/g,":").replace(/[\u200B-\u200D\uFEFF\u00A0]/g," ");
+  const cfg = {}; const re = /["']?(apiKey|authDomain|projectId|storageBucket|messagingSenderId|appId|measurementId)["']?\s*[:=]\s*["']([^"'\n]+)["']/g; let m;
+  while((m = re.exec(txt))) cfg[m[1]] = m[2].trim();
   if(!cfg.apiKey || !cfg.projectId || !cfg.appId) return null;
   if(!cfg.authDomain) cfg.authDomain = cfg.projectId + ".firebaseapp.com";
   return cfg;
