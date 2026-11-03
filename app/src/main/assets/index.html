@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="only light">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>일정 체크</title>
+<script src="lib/firebase-app-compat.js"></script>
+<script src="lib/firebase-auth-compat.js"></script>
+<script src="lib/firebase-firestore-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f6f4ef; --surface:#fcfcfb; --card:#ffffff; --line:#e6e3dc;
+  --text:#1d1c1a; --text2:#55534e; --muted:#8d8a83;
+  --accent:#2a78d6; --accent-soft:#e6f0fb;
+  --done:#1baf7a; --done-soft:#e3f6ee;
+  --partial:#eda100; --partial-soft:#fdf3dc;
+  --miss:#e34948; --miss-soft:#fce8e8;
+  --none:#c9c6bf; --none-soft:#f1efea;
+  --c-study:#2a78d6; --c-class:#6250d6; --c-routine:#8d8a83;
+  --radius:16px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans KR",system-ui,sans-serif;font-size:16px;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;cursor:pointer}
+html{color-scheme:only light}
+input,select,textarea{font-family:inherit;font-size:15px;color:#1d1c1a;background-color:#fff;color-scheme:only light;-webkit-text-fill-color:#1d1c1a}
+select option{color:#1d1c1a;background-color:#fff}
+input::placeholder,textarea::placeholder{color:#a19e97;-webkit-text-fill-color:#a19e97}
+input[type=checkbox]{accent-color:#1d1c1a;background:#fff}
+.wrap{max-width:1040px;margin:0 auto;padding:16px 16px 80px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.brand{font-family:"Jua",sans-serif;font-size:26px;letter-spacing:-.5px}
+.brand small{display:block;font-family:"Noto Sans KR";font-size:13px;color:var(--text2);font-weight:500;letter-spacing:0}
+.clock{font-family:"Jua";font-size:20px;color:var(--text2)}
+nav.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;background:var(--card);padding:6px;border-radius:16px;border:1px solid var(--line)}
+nav.tabs a{flex:1;min-width:90px;text-align:center;text-decoration:none;color:var(--text2);padding:10px 12px;border-radius:11px;font-weight:700;font-size:15px;white-space:nowrap}
+nav.tabs a.on{background:var(--text);color:#fff}
+nav.tabs a .lock{font-size:12px;opacity:.7}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:14px}
+.card h2{margin:0 0 12px;font-size:18px;font-weight:700}
+.card h3{margin:14px 0 8px;font-size:15px;color:var(--text2)}
+.row{display:flex;gap:14px;flex-wrap:wrap}
+.row>.card{flex:1;min-width:260px}
+.muted{color:var(--muted)} .t2{color:var(--text2)}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--none-soft);color:var(--text2)}
+.notice{background:#fff8e6;border:1px solid #f3dfa8;color:#6b5100;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px}
+.notice.err{background:var(--miss-soft);border-color:#f2c3c3;color:#8a1f1f}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--text);padding:9px 14px;border-radius:12px;font-weight:700;font-size:14px}
+.btn.primary{background:var(--text);border-color:var(--text);color:#fff}
+.btn.danger{color:var(--miss);border-color:#f2c3c3}
+.btn.sm{padding:5px 10px;font-size:13px;border-radius:9px}
+.btn:disabled{opacity:.4;cursor:default}
+
+/* ---------- kid view ---------- */
+.kid-head{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.ring{width:110px;height:110px;flex:none}
+.kid-head .big{font-family:"Jua";font-size:28px;line-height:1.2}
+.daynav{display:flex;align-items:center;gap:8px;margin-left:auto}
+.daynav .btn{font-size:18px;padding:6px 12px}
+.timeline{display:flex;flex-direction:column;gap:10px}
+.item{display:grid;grid-template-columns:86px 1fr;gap:12px;align-items:start;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:14px}
+.item.routine{background:transparent;border-style:dashed;padding:10px 14px}
+.item.now{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.item.s-done{border-color:var(--done);background:var(--done-soft)}
+.item.s-partial{border-color:var(--partial);background:var(--partial-soft)}
+.item.s-miss{border-color:var(--miss);background:var(--miss-soft)}
+.item .time{font-family:"Jua";font-size:18px;color:var(--text2);line-height:1.2}
+.item .time small{display:block;font-size:14px;color:var(--muted)}
+.item .title{font-family:"Jua";font-size:22px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.item.routine .title{font-size:17px;color:var(--text2)}
+.badge{font-family:"Noto Sans KR";font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff}
+.badge.reading{background:#eb6834}
+.badge.study{background:var(--c-study)} .badge.class{background:var(--c-class)} .badge.routine{background:var(--c-routine)}
+.badge.now{background:var(--accent)} .badge.late{background:#fff;color:var(--miss);border:1px solid var(--miss)}
+.choices{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.choice{flex:1;min-width:110px;border:2px solid var(--line);background:#fff;border-radius:14px;padding:12px 8px;font-size:17px;font-weight:700;color:var(--text2)}
+.choice .e{font-size:22px;display:block}
+.choice.on.done{border-color:var(--done);background:var(--done);color:#fff}
+.choice.on.partial{border-color:var(--partial);background:var(--partial);color:#fff}
+.choice.on.miss{border-color:var(--miss);background:var(--miss);color:#fff}
+.reasons{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.reason{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;font-size:14px;color:var(--text2)}
+.reason.on{background:var(--text);color:#fff;border-color:var(--text)}
+.checked-at{font-size:12px;color:var(--muted);margin-top:6px}
+.moods{display:flex;gap:8px;flex-wrap:wrap}
+.mood{font-size:34px;border:2px solid var(--line);background:#fff;border-radius:16px;width:68px;height:68px}
+.mood.on{border-color:var(--accent);background:var(--accent-soft)}
+textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;resize:vertical;min-height:70px;background:#fff}
+input[type=text],input[type=time],input[type=date],input[type=password],select{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff}
+
+/* ---------- parent / stats ---------- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.kpi .lbl{font-size:13px;color:var(--text2);font-weight:500}
+.kpi .val{font-size:30px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .sub{font-size:12px;color:var(--muted);margin-top:2px}
+table.list{width:100%;border-collapse:collapse;font-size:14px}
+table.list th,table.list td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.list th{color:var(--text2);font-weight:500;font-size:13px}
+table.list td.num{text-align:right;font-variant-numeric:tabular-nums}
+.st{display:inline-flex;align-items:center;gap:4px;font-weight:700;font-size:13px;padding:2px 8px;border-radius:999px}
+.st.done{background:var(--done-soft);color:#0d6e4b} .st.partial{background:var(--partial-soft);color:#7a5300}
+.st.miss{background:var(--miss-soft);color:#a12a2a} .st.none{background:var(--none-soft);color:var(--text2)}
+.st.future{background:transparent;color:var(--muted)}
+.feed{list-style:none;margin:0;padding:0;font-size:14px}
+.feed li{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);align-items:center}
+.feed li .when{color:var(--muted);width:110px;flex:none;font-variant-numeric:tabular-nums}
+.weekgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.wcol{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 6px;min-height:80px}
+.wcol.today{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.wcol .wd{font-weight:700;font-size:13px;text-align:center;margin-bottom:6px}
+.wcol .wd small{display:block;color:var(--muted);font-weight:400}
+.chip{display:block;font-size:12px;padding:4px 6px;border-radius:7px;margin-bottom:4px;background:var(--none-soft);color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip.done{background:var(--done-soft);color:#0d6e4b} .chip.partial{background:var(--partial-soft);color:#7a5300}
+.chip.miss{background:var(--miss-soft);color:#a12a2a} .chip.future{background:transparent;color:var(--muted);border:1px dashed var(--line)}
+.wrate{font-size:12px;text-align:center;margin-top:4px;font-weight:700;color:var(--text2)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--text2);margin:6px 0 10px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.seg{display:flex;gap:2px;height:22px;border-radius:6px;overflow:hidden;background:var(--surface)}
+.seg>div{height:100%}
+.seg>div:first-child{border-radius:4px 0 0 4px}.seg>div:last-child{border-radius:0 4px 4px 0}
+.hbars{display:flex;flex-direction:column;gap:8px}
+.hbar{display:grid;grid-template-columns:130px 1fr 92px;gap:10px;align-items:center;font-size:14px}
+.hbar .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hbar .track{height:14px;background:var(--surface);border-radius:4px;position:relative;border:1px solid var(--line)}
+.hbar .fill{height:100%;background:var(--accent);border-radius:0 4px 4px 0}
+.hbar .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--text2)}
+.vbars{display:flex;align-items:flex-end;gap:4px;height:170px;padding:10px 0 0;border-bottom:1px solid var(--line);position:relative}
+.vbars .b{flex:1;max-width:56px;display:flex;flex-direction:column;justify-content:flex-end;height:100%;position:relative}
+.vbars .b .f{background:var(--accent);border-radius:4px 4px 0 0;min-height:2px}
+.vbars .b .f.zero{background:var(--none)}
+.vbars .gl{position:absolute;left:0;right:0;border-top:1px dashed var(--line);font-size:10px;color:var(--muted)}
+.vlabels{display:flex;gap:4px;font-size:11px;color:var(--muted);margin-top:4px}
+.vlabels span{flex:1;max-width:56px;text-align:center;overflow:hidden;white-space:nowrap}
+.seg-btns{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.seg-btns button{border:0;background:transparent;padding:8px 14px;font-weight:700;color:var(--text2);font-size:14px}
+.seg-btns button.on{background:var(--text);color:#fff}
+#tip{position:fixed;pointer-events:none;background:var(--text);color:#fff;font-size:13px;padding:6px 9px;border-radius:8px;z-index:50;display:none;max-width:240px;line-height:1.4}
+
+/* review */
+.stars{display:flex;gap:4px}
+.star{font-size:30px;background:none;border:0;padding:2px;filter:grayscale(1);opacity:.35}
+.star.on{filter:none;opacity:1}
+.talk{margin:0;padding-left:20px;line-height:1.8}
+.field{margin-bottom:12px}
+.field label{display:block;font-weight:700;font-size:14px;margin-bottom:5px;color:var(--text2)}
+
+/* reading */
+.readbox{margin-top:12px;background:#fff7f2;border:1px solid #f6d3c2;border-radius:14px;padding:12px}
+.readbox .rrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:16px}
+.readbox input[type=number]{width:90px;font-size:18px;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+.readbox select{font-size:16px}
+.readbox .done-chk{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.readbox .done-chk input{width:22px;height:22px}
+.rlog{font-size:13px;color:var(--text2);margin-top:8px}
+.vols{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.vol{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--surface);font-size:13px}
+.vol b{display:block;font-size:16px;margin-bottom:4px}
+.vol.done{background:var(--done-soft);border-color:var(--done)}
+.vol.reading{background:#fff7f2;border-color:#eb6834}
+.vol .pb{height:6px;background:var(--none-soft);border-radius:3px;margin-top:6px;overflow:hidden}
+.vol .pb i{display:block;height:100%;background:#eb6834}
+.vol.done .pb i{background:var(--done)}
+.fsbtn{font-size:14px}
+/* setup */
+.setup{max-width:640px;margin:10px auto}
+.setup .stepno{font-size:13px;color:var(--muted);font-weight:700;margin-bottom:4px}
+.setup textarea{min-height:150px;font-family:ui-monospace,monospace;font-size:13px}
+.setup .big-choice{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.setup .big-choice button{border:2px solid var(--line);background:#fff;border-radius:18px;padding:22px 12px;font-size:18px;font-weight:700;text-align:center}
+.setup .big-choice button span{display:block;font-size:40px;margin-bottom:6px}
+.setup .big-choice button small{display:block;font-size:13px;color:var(--text2);font-weight:400;margin-top:6px}
+.famcode{font-family:ui-monospace,monospace;font-size:30px;font-weight:700;letter-spacing:2px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:14px;text-align:center;margin:10px 0}
+.err{color:var(--miss);font-size:14px;margin-top:8px}
+.okline{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.okline .lbl{flex:1;min-width:180px}
+/* edit */
+.editform{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end}
+.editform label{font-size:13px;color:var(--text2);font-weight:700;display:flex;flex-direction:column;gap:4px}
+.daysec h3{margin:16px 0 6px}
+
+/* pin */
+.pinbox{max-width:340px;margin:30px auto;text-align:center}
+.pinbox .dots{font-size:30px;letter-spacing:10px;height:44px}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+.pad button{font-size:24px;padding:16px 0;border-radius:14px;border:1px solid var(--line);background:#fff;font-weight:700}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;display:none;z-index:60}
+@media (max-width:640px){
+  nav.tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:5px;border-radius:14px}
+  nav.tabs a{min-width:0;padding:9px 2px;font-size:13px;border-radius:10px;overflow:hidden;text-overflow:ellipsis}
+  .weekgrid{grid-template-columns:repeat(7,minmax(70px,1fr));overflow-x:auto}
+  .hbar{grid-template-columns:96px 1fr 80px}
+  .item{grid-template-columns:70px 1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span id="brandname">일정 체크</span> <small id="brandsub"></small></div>
+    <div style="display:flex;align-items:center;gap:10px"><span id="devbtns"></span><div class="clock" id="clock"></div></div>
+  </header>
+  <nav class="tabs" id="tabs"></nav>
+  <div id="status"></div>
+  <main id="main"><div class="card muted">불러오는 중…</div></main>
+</div>
+<div id="tip"></div>
+<div id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ===================== helpers ===================== */
+const DAYS = ["월","화","수","목","금","토","일"];
+const CAT = {study:"스스로 공부", reading:"독서", class:"수업·학원", routine:"생활"};
+const REASONS = ["시간이 부족했어요","하기 싫었어요","몸이 안 좋았어요","다른 일정이 있었어요","깜빡했어요"];
+const MOODS = ["😆","😊","😐","😢","😡"];
+const ST_LABEL = {done:"✅ 다 했어요", partial:"🔶 조금 했어요", miss:"❌ 못 했어요", none:"⬜ 미체크", future:"· 예정"};
+const ST_SHORT = {done:"✅ 완료", partial:"🔶 일부", miss:"❌ 못함", none:"⬜ 미체크", future:"예정"};
+
+const pad2 = n => String(n).padStart(2,"0");
+const ymd = d => d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+const parse = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y,m-1,d); };
+const addDays = (s,n) => { const d = parse(s); d.setDate(d.getDate()+n); return ymd(d); };
+const wdIdx = s => (parse(s).getDay()+6)%7;           // 월=0 … 일=6
+const monday = s => addDays(s, -wdIdx(s));
+const anyT = i => !i.start;
+const endM = i => anyT(i) ? 24*60 : toMin(i.end);
+const trng = i => anyT(i) ? "언제든" : i.start+"~"+i.end;
+const toMin = t => { if(!t) return 0; const [h,m] = t.split(":").map(Number); return h*60+(m||0); };
+const nowMin = () => { const d = new Date(); return d.getHours()*60+d.getMinutes(); };
+const today = () => ymd(new Date());
+const md = s => { const d = parse(s); return (d.getMonth()+1)+"/"+d.getDate(); };
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pct = v => v==null ? "–" : Math.round(v*100)+"%";
+const hm = iso => { if(!iso) return ""; const d = new Date(iso); return pad2(d.getHours())+":"+pad2(d.getMinutes()); };
+function datesBetween(a,b){ const out=[]; if(a>b) return out; let c=a; while(c<=b){ out.push(c); c=addDays(c,1);} return out; }
+function store(k,v){ try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k,v); }catch(e){} }
+function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+
+/* ===================== state ===================== */
+const S = {
+  db:null, ready:false, timedOut:false, error:null,
+  schedule:null, scheduleLoaded:false, readingCfg:null,
+  settings:{}, days:{}, reviews:{},
+  view:"today", kidDate:today(), week:monday(today()), statRange:"week",
+  unlocked: load("hs_unlocked")==="1",
+  setup:null, role:"", unsubs:[],
+  pinEntry:"", editId:null, delConfirm:null, drafts:{}, openReason:null
+};
+
+/* ===================== db ===================== */
+const queues = {};
+function enqueue(path, fn){
+  queues[path] = (queues[path]||Promise.resolve()).then(fn).catch(e=>{
+    console.error(e);
+    if(e && e.code==="quota_exceeded") toast("저장 공간이 가득 찼어요. 오래된 기록을 정리해 주세요.");
+    else if(e && (e.code==="permission-denied" || e.code==="permission")) toast("저장 권한이 없어요. Firebase 보안 규칙을 확인해 주세요.");
+    else toast("저장하지 못했어요. 잠시 후 다시 눌러 주세요.");
+  });
+  return queues[path];
+}
+
+async function connect(){
+  const db = S.db;
+  if(!db){ S.error = "nodb"; render(); return; }
+  S.unsubs.forEach(u=>{ try{u();}catch(_){} }); S.unsubs = [];
+  S.error = null; S.ready = false; S.timedOut = false;
+  const timer = setTimeout(()=>{ if(!S.ready){ S.timedOut = true; renderStatus(); } }, 10000);
+  const onErr = e => { clearTimeout(timer); S.error = (e && e.code) || "unavailable"; renderStatus(); };
+  let got = {sch:false, days:false};
+  const mark = (k, snap) => { got[k] = true; if(snap && snap.metadata && !snap.metadata.fromCache && got.sch && got.days){ S.ready = true; S.timedOut=false; clearTimeout(timer); } };
+
+  S.unsubs.push(db.doc("schedule/main").onSnapshot(snap=>{
+    S.schedule = snap.exists ? snap.data() : null;
+    S.scheduleLoaded = true; mark("sch", snap); render(); pushWidget();
+  }, onErr));
+  S.unsubs.push(db.doc("config/settings").onSnapshot(snap=>{
+    S.settings = snap.exists ? (snap.data()||{}) : {}; render();
+    if(HasAndroid && safe(()=>Android.getPref("childName"), "") !== kidName()){ safe(()=>Android.setPref("childName", kidName())); }
+  }, onErr));
+  S.unsubs.push(db.collection("days").onSnapshot(snap=>{
+    const m = {}; snap.docs.forEach(d=>{ m[d.id] = d.data(); }); S.days = m; mark("days", snap); render(); pushWidget();
+  }, onErr));
+  S.unsubs.push(db.doc("reading/main").onSnapshot(snap=>{
+    S.readingCfg = snap.exists ? (snap.data()||{}) : {}; render();
+  }, onErr));
+  S.unsubs.push(db.collection("reviews").onSnapshot(snap=>{
+    const m = {}; snap.docs.forEach(d=>{ m[d.id] = d.data(); }); S.reviews = m; render();
+  }, onErr));
+}
+
+/* ===================== domain ===================== */
+function schedItems(){ return (S.schedule && Array.isArray(S.schedule.items)) ? S.schedule.items : []; }
+function startDate(){ return (S.schedule && S.schedule.startDate) || today(); }
+function planFor(date){
+  const doc = S.days[date];
+  if(date < today() && doc && Array.isArray(doc.plan) && doc.plan.length) return doc.plan;
+  const w = wdIdx(date);
+  return schedItems().filter(i=>i.day===w).sort((a,b)=>toMin(a.start)-toMin(b.start))
+    .map(i=>({id:i.id,title:i.title,cat:i.cat,start:i.start,end:i.end}));
+}
+const checkable = plan => plan.filter(i=>i.cat!=="routine");
+function statusOf(date, item){
+  const c = S.days[date] && S.days[date].checks && S.days[date].checks[item.id];
+  if(c && c.s) return c.s;
+  const t = today();
+  if(date > t) return "future";
+  if(date === t && endM(item) > nowMin()) return "future";
+  return "none";
+}
+const score = s => s==="done"?1 : s==="partial"?0.5 : 0;
+
+function dayStats(date){
+  const items = checkable(planFor(date));
+  let r = {total:0, done:0, partial:0, miss:0, none:0, future:0, pts:0};
+  items.forEach(i=>{ const s = statusOf(date,i); r[s]++; if(s!=="future"){ r.total++; r.pts += score(s);} });
+  r.rate = r.total ? r.pts/r.total : null;
+  r.all = items.length;
+  return r;
+}
+
+function rangeStats(from, to){
+  const s0 = startDate(); if(from < s0) from = s0;
+  const t = today(); if(to > t) to = t;
+  const dates = datesBetween(from, to);
+  const agg = {total:0,done:0,partial:0,miss:0,none:0,pts:0, onTime:0, checked:0};
+  const byTitle = {}, byWd = {}, reasons = {}, daily = [];
+  dates.forEach(date=>{
+    const ds = dayStats(date); daily.push({date, rate:ds.rate, ds});
+    checkable(planFor(date)).forEach(i=>{
+      const st = statusOf(date,i); if(st==="future") return;
+      agg.total++; agg[st]++; agg.pts += score(st);
+      const key = i.title;
+      (byTitle[key] = byTitle[key] || {n:0,pts:0,done:0,partial:0,miss:0,none:0,cat:i.cat}); byTitle[key].n++; byTitle[key].pts += score(st); byTitle[key][st]++;
+      const w = wdIdx(date); (byWd[w] = byWd[w] || {n:0,pts:0}); byWd[w].n++; byWd[w].pts += score(st);
+      const c = S.days[date] && S.days[date].checks && S.days[date].checks[i.id];
+      if(c && c.s){
+        agg.checked++;
+        const at = new Date(c.at); const due = parse(date); due.setMinutes(endM(i)+60);
+        if(at <= due) agg.onTime++;
+        if(c.s!=="done"){ const r = c.reason || "이유 미선택"; reasons[r] = (reasons[r]||0)+1; }
+      } else if(st==="none"){ reasons["체크 안 함"] = (reasons["체크 안 함"]||0)+1; }
+    });
+  });
+  agg.rate = agg.total ? agg.pts/agg.total : null;
+  // streak: consecutive days (ending at most recent finished day) with rate >= 0.8
+  let streak = 0; for(let i=daily.length-1;i>=0;i--){ const d = daily[i]; if(d.date===t && d.ds.future>0){ continue; } if(d.rate==null) continue; if(d.rate>=0.8) streak++; else break; }
+  return {from, to, dates, agg, byTitle, byWd, reasons, daily, streak};
+}
+
+function dayDocForWrite(date){
+  const cur = S.days[date] || {};
+  const plan = date===today() || !Array.isArray(cur.plan) || !cur.plan.length ? planFor(date) : cur.plan;
+  return {date, plan, checks: cur.checks || {}, reading: Array.isArray(cur.reading) ? cur.reading : [], mood: cur.mood || "", note: cur.note || "", updatedAt: new Date().toISOString()};
+}
+function saveDay(date, mutate){
+  if(!S.db){ toast("저장 기능이 연결되지 않았어요."); return; }
+  const doc = JSON.parse(JSON.stringify(dayDocForWrite(date)));
+  mutate(doc); doc.updatedAt = new Date().toISOString();
+  S.days[date] = doc; render();
+  enqueue("days/"+date, ()=> S.db.doc("days/"+date).set(JSON.parse(JSON.stringify(S.days[date]))));
+}
+function setCheck(date, id, s){
+  saveDay(date, doc=>{
+    const prev = doc.checks[id];
+    if(prev && prev.s===s){ delete doc.checks[id]; S.openReason=null; return; }   // 같은 버튼 다시 누르면 취소
+    doc.checks[id] = {s, at: new Date().toISOString()};
+    if(s!=="done" && prev && prev.reason) doc.checks[id].reason = prev.reason;
+    S.openReason = s==="done" ? null : id;
+  });
+}
+function setReason(date, id, r){
+  saveDay(date, doc=>{ const c = doc.checks[id]; if(!c) return; if(c.reason===r) delete c.reason; else c.reason = r; });
+}
+
+/* ===================== reading ===================== */
+function series(){ return (S.readingCfg && Array.isArray(S.readingCfg.series)) ? S.readingCfg.series : []; }
+function allLogs(){
+  const out = [];
+  Object.keys(S.days).sort().forEach(d=>{ (S.days[d].reading||[]).forEach((r,ix)=>out.push(Object.assign({date:d, ix}, r))); });
+  return out;
+}
+// 권별 진행: 가장 많이 읽은 쪽, 완독 여부 — 기록에서 계산
+function progress(sid){
+  const p = {};
+  allLogs().filter(l=>l.sid===sid).forEach(l=>{
+    const v = p[l.vol] || (p[l.vol] = {page:0, done:false, doneAt:null, pages:0, first:l.date});
+    v.page = Math.max(v.page, +l.to||0); v.pages += Math.max(0, +l.pages||0);
+    if(l.done && !v.done){ v.done = true; v.doneAt = l.date; }
+  });
+  return p;
+}
+function currentVol(s){
+  const p = progress(s.id);
+  for(let v=1; v<=s.volumes; v++){ if(p[v] && !p[v].done && p[v].page>0) return v; }
+  for(let v=1; v<=s.volumes; v++){ if(!p[v] || !p[v].done) return v; }
+  return s.volumes;
+}
+function readingForm(date, item){
+  const ss = series(); const doc = S.days[date] || {};
+  if(!ss.length) return `<div class="readbox t2">보호자 화면 ‘📚 독서’에서 책(시리즈)을 먼저 등록해 주세요.</div>`;
+  const key = "rd:"+date+":"+item.id;
+  const sid = S.drafts[key+":sid"] || ss[0].id; const s = ss.find(x=>x.id===sid) || ss[0];
+  const vol = +(S.drafts[key+":vol"] || currentVol(s));
+  const p = progress(s.id)[vol] || {page:0};
+  const todayLogs = (doc.reading||[]).map((r,ix)=>Object.assign({ix},r)).filter(r=>r.item===item.id);
+  return `<div class="readbox">
+    <div class="rrow">📖
+      ${ss.length>1?`<select data-act-change="rdSeries" data-key="${key}">${ss.map(x=>`<option value="${esc(x.id)}" ${x.id===s.id?"selected":""}>${esc(x.title)}</option>`).join("")}</select>`:`<b>${esc(s.title)}</b>`}
+      <select data-act-change="rdVol" data-key="${key}">${Array.from({length:s.volumes},(_,k)=>k+1).map(v=>`<option value="${v}" ${v===vol?"selected":""}>${v}권</option>`).join("")}</select>
+      <span class="t2">${p.done?"(이미 다 읽은 권이에요)":p.page?`지난번 ${p.page}쪽까지`:"처음 읽어요"}</span></div>
+    <div class="rrow" style="margin-top:8px">오늘 <input type="number" min="1" max="2000" inputmode="numeric" data-draft="${key}:to" value="${esc(S.drafts[key+":to"]||"")}" placeholder="${(p.page||0)+10}"> 쪽까지 읽었어요
+      <label class="done-chk"><input type="checkbox" data-draft-chk="${key}:done" ${S.drafts[key+":done"]?"checked":""}> 이 권 끝까지 다 읽었어요!</label>
+      <button class="btn primary" data-act="rdSave" data-id="${esc(item.id)}" data-sid="${esc(s.id)}" data-vol="${vol}">독서 기록 저장</button></div>
+    ${todayLogs.length?`<div class="rlog">${todayLogs.map(r=>{ const sx = ss.find(x=>x.id===r.sid); return `✔ ${esc(sx?sx.title:"책")} ${r.vol}권 ${r.from}~${r.to}쪽 (${r.pages}쪽)${r.done?" · 완독 🎉":""} <button class="btn sm" data-act="rdDel" data-date="${date}" data-ix="${r.ix}">지우기</button>`; }).join("<br>")}</div>`:""}
+  </div>`;
+}
+function saveReading(date, itemId, sid, vol){
+  const key = "rd:"+date+":"+itemId;
+  const to = parseInt(S.drafts[key+":to"]||"",10); const done = !!S.drafts[key+":done"];
+  const s = series().find(x=>x.id===sid); if(!s) return;
+  const prev = (progress(sid)[vol]||{}).page || 0;
+  if(!(to>0) && !done){ toast("몇 쪽까지 읽었는지 적어 주세요"); return; }
+  if(to>0 && to<=prev && !done){ toast(`지난번에 ${prev}쪽까지 읽었어요. 그보다 큰 숫자를 적어 주세요`); return; }
+  if(s.pages && to>s.pages+50){ toast("쪽수를 다시 확인해 주세요"); return; }
+  const end = to>0 ? to : (s.pages || prev);
+  const entry = {item:itemId, sid, vol, from: prev+1, to: end, pages: Math.max(0, end-prev), done, at:new Date().toISOString()};
+  ["to","done"].forEach(k=>delete S.drafts[key+":"+k]);
+  saveDay(date, d=>{ d.reading = (d.reading||[]).concat([entry]); if(!d.checks[itemId]) d.checks[itemId] = {s:"done", at:entry.at}; });
+  toast(done ? `${vol}권 완독! 정말 대단해요 🎉` : `${entry.pages}쪽 읽었어요 👏`);
+}
+function readStats(from, to){
+  const logs = allLogs().filter(l=>l.date>=from && l.date<=to);
+  const days = new Set(logs.filter(l=>l.pages>0||l.done).map(l=>l.date));
+  return {pages: logs.reduce((a,l)=>a+(+l.pages||0),0), days: days.size, finished: logs.filter(l=>l.done).length, logs};
+}
+function viewBooks(){
+  const ss = series(); const t = today(); const canParent = !needPin();
+  const wk = readStats(monday(t), t); const all = readStats("0000-00-00", t);
+  let h = `<div class="kpis">
+    <div class="kpi"><div class="lbl">이번 주 읽은 쪽수</div><div class="val">${wk.pages}<span style="font-size:16px">쪽</span></div><div class="sub">읽은 날 ${wk.days}일</div></div>
+    <div class="kpi"><div class="lbl">지금까지 읽은 쪽수</div><div class="val">${all.pages}<span style="font-size:16px">쪽</span></div><div class="sub">읽은 날 ${all.days}일</div></div>
+    ${ss.map(s=>{ const p = progress(s.id); const fin = Object.values(p).filter(v=>v.done).length; return `<div class="kpi"><div class="lbl">${esc(s.title)} 완독</div><div class="val">${fin}<span class="muted" style="font-size:18px"> / ${s.volumes}권</span></div><div class="sub">지금 ${currentVol(s)}권 읽는 중</div></div>`; }).join("")}
+  </div>`;
+  if(!ss.length) h += `<div class="card"><h2>등록된 책이 없어요</h2><p class="t2">아래 ‘책 등록’에서 시리즈를 추가해 주세요${canParent?"":" (보호자 PIN 필요)"}.</p></div>`;
+  ss.forEach(s=>{
+    const p = progress(s.id);
+    h += `<div class="card"><h2>📚 ${esc(s.title)} <span class="muted" style="font-size:14px;font-weight:400">전 ${s.volumes}권${s.pages?` · 권당 약 ${s.pages}쪽`:""}</span></h2><div class="vols">`;
+    for(let v=1; v<=s.volumes; v++){
+      const x = p[v]; const st = x&&x.done ? "done" : x&&x.page>0 ? "reading" : "";
+      const ratio = x&&x.done ? 1 : (x && s.pages ? Math.min(1, x.page/s.pages) : 0);
+      h += `<div class="vol ${st}" data-tip="${esc(`${s.title} ${v}권 · ${x&&x.done?`${md(x.doneAt)} 완독`:x&&x.page?`${x.page}쪽까지 읽음`:"아직 안 읽음"}`)}"><b>${v}권</b>${x&&x.done?"✅ 다 읽음":x&&x.page?`📖 ${x.page}쪽${s.pages?` (${Math.round(ratio*100)}%)`:""}`:'<span class="muted">안 읽음</span>'}
+        ${s.pages||(x&&x.done)?`<div class="pb"><i style="width:${ratio*100}%"></i></div>`:""}</div>`;
+    }
+    h += `</div></div>`;
+  });
+  // daily pages chart (last 14 days)
+  const d14 = datesBetween(addDays(t,-13), t).map(d=>({d, n: readStats(d,d).pages}));
+  const mx = Math.max(10, ...d14.map(x=>x.n));
+  h += `<div class="card"><h2>최근 2주 읽은 쪽수</h2><div class="vbars">${d14.map(x=>`<div class="b" data-tip="${md(x.d)} (${DAYS[wdIdx(x.d)]}) · ${x.n}쪽"><div class="f ${x.n?"":"zero"}" style="height:${x.n?Math.max(2,x.n/mx*100):1}%"></div></div>`).join("")}</div>
+    <div class="vlabels">${d14.map(x=>`<span>${md(x.d).split("/")[1]}(${DAYS[wdIdx(x.d)]})</span>`).join("")}</div><p class="muted" style="font-size:12px;margin:6px 0 0">가장 높은 막대 ${mx}쪽 기준</p></div>`;
+  const logs = all.logs.slice().sort((a,b)=>(b.at||"").localeCompare(a.at||"")).slice(0,20);
+  h += `<div class="card"><h2>독서 기록</h2>${logs.length?`<table class="list"><thead><tr><th>날짜</th><th>책</th><th>쪽</th><th class="num">읽은 쪽수</th><th></th></tr></thead><tbody>${logs.map(l=>{ const s = ss.find(x=>x.id===l.sid); return `<tr><td class="t2">${md(l.date)} ${hm(l.at)}</td><td>${esc(s?s.title:"(삭제된 책)")} ${l.vol}권${l.done?" ✅완독":""}</td><td class="t2">${l.from}~${l.to}</td><td class="num">${l.pages}</td><td style="text-align:right">${canParent||l.date===t?`<button class="btn sm" data-act="rdDel" data-date="${l.date}" data-ix="${l.ix}">지우기</button>`:""}</td></tr>`; }).join("")}</tbody></table>`:`<p class="muted">아직 기록이 없어요. ‘오늘 할 일’의 책읽기 칸에서 기록해요.</p>`}</div>`;
+  // parent: series management
+  h += `<div class="card"><h2>책 등록 ${canParent?"":'<span class="pill">🔒 보호자 잠금</span>'}</h2>`;
+  if(canParent){
+    ss.forEach(s=>{ h += `<form class="editform" data-series="${esc(s.id)}" style="margin-bottom:10px">
+      <label style="grid-column:span 2">제목<input type="text" name="title" value="${esc(s.title)}" maxlength="30" required></label>
+      <label>전체 권수<input type="text" inputmode="numeric" name="volumes" value="${s.volumes}" required></label>
+      <label>권당 쪽수(대략, 모르면 비움)<input type="text" inputmode="numeric" name="pages" value="${s.pages||""}"></label>
+      <div style="display:flex;gap:6px"><button class="btn primary" type="submit">저장</button>${S.delConfirm==="s:"+s.id?`<button class="btn danger" type="button" data-act="serDelYes" data-id="${esc(s.id)}">삭제 확인</button>`:`<button class="btn danger" type="button" data-act="serDel" data-id="${esc(s.id)}">삭제</button>`}</div></form>`; });
+    h += `<form class="editform" data-series="" style="border-top:1px solid var(--line);padding-top:12px">
+      <label style="grid-column:span 2">새 책/시리즈 제목<input type="text" name="title" maxlength="30" required placeholder="예) 한국사 만화"></label>
+      <label>전체 권수<input type="text" inputmode="numeric" name="volumes" value="1" required></label>
+      <label>권당 쪽수(대략)<input type="text" inputmode="numeric" name="pages" placeholder="모르면 비움"></label>
+      <div><button class="btn" type="submit">추가</button></div></form>
+      <p class="muted" style="font-size:13px;margin:8px 0 0">책을 삭제해도 읽은 기록은 남아요. 일정에서 종류를 ‘독서’로 지정한 항목에 쪽수 기록 칸이 나타나요.</p>`;
+  } else h += `<p class="t2" style="margin:0">책 추가·수정은 보호자 PIN을 입력한 뒤 할 수 있어요.</p>`;
+  return h + `</div>`;
+}
+function saveSeries(list){
+  if(!S.db){ toast("저장 기능이 연결되지 않았어요."); return; }
+  S.readingCfg = Object.assign({}, S.readingCfg||{}, {series:list, updatedAt:new Date().toISOString()}); render();
+  enqueue("reading/main", ()=> S.db.doc("reading/main").set(JSON.parse(JSON.stringify(S.readingCfg))));
+}
+
+/* ===================== UI: shell ===================== */
+const VIEWS = [
+  {id:"today",  label:"🙋 오늘 할 일", locked:false},
+  {id:"books",  label:"📚 독서", locked:false},
+  {id:"review", label:"💬 주간 리뷰", locked:false},
+  {id:"parent", label:"👀 보호자 현황", locked:true},
+  {id:"stats",  label:"📊 통계", locked:true},
+  {id:"edit",   label:"🛠 일정 관리", locked:true},
+  {id:"settings", label:"⚙ 설정", locked:true},
+];
+function needPin(){ return !!S.settings.pin && !S.unlocked; }
+function renderTabs(){
+  const tabsEl = document.getElementById("tabs");
+  tabsEl.style.display = S.setup ? "none" : "";
+  const bn = document.getElementById("brandname"); if(bn) bn.textContent = (kidName() ? kidName()+" " : "") + "일정 체크";
+  const sub = document.getElementById("brandsub"); if(sub) sub.textContent = S.role==="parent" ? "보호자" : S.role==="kid" ? "아이 탭" : "";
+  const dev = document.getElementById("devbtns");
+  if(dev) dev.innerHTML = "";
+  tabsEl.innerHTML = VIEWS.map(v=>`<a href="#${v.id}" class="${S.view===v.id?"on":""}">${v.label}${v.locked&&needPin()?' <span class="lock">🔒</span>':""}</a>`).join("")
+    + (S.role!=="parent" && S.settings.pin && S.unlocked ? `<a href="#" data-act="lock" style="flex:0;min-width:auto">🔒 잠그기</a>` : "");
+}
+function renderStatus(){
+  const el = document.getElementById("status"); let h = "";
+  if(S.setup) h = "";
+  else if(S.error==="nodb" || S.error==="init") h = `<div class="notice err">Firebase에 연결하지 못했어요. 인터넷 연결을 확인하고 앱을 다시 열어 주세요.${S.errorMsg?`<br><small>${esc(S.errorMsg)}</small>`:""} <button class="btn sm" data-act="retryBoot">다시 시도</button></div>`;
+  else if(S.error==="permission") h = `<div class="notice err">Firebase 보안 규칙 때문에 기록을 읽지 못했어요. Firestore 규칙을 확인해 주세요.</div>`;
+  else if(S.error) h = `<div class="notice err">기록을 불러오지 못했어요. 앱을 다시 열어 주세요.</div>`;
+  else if(S.timedOut) h = `<div class="notice">아직 서버에 연결 중이에요. 인터넷 연결을 확인해 주세요. 보이는 내용이 최신이 아닐 수 있어요.</div>`;
+  el.innerHTML = h + (h ? "" : updateBanner());
+}
+function tick(){
+  const d = new Date();
+  document.getElementById("clock").textContent = (d.getMonth()+1)+"월 "+d.getDate()+"일 ("+DAYS[(d.getDay()+6)%7]+") "+pad2(d.getHours())+":"+pad2(d.getMinutes());
+}
+
+let pendingRender = false;
+function render(){
+  const ae = document.activeElement;
+  if(ae && (ae.tagName==="TEXTAREA" || (ae.tagName==="INPUT" && ae.type!=="button")) && document.getElementById("main").contains(ae)){
+    pendingRender = true; renderStatus(); return;   // 입력 중에는 화면을 다시 그리지 않음
+  }
+  pendingRender = false;
+  renderTabs(); renderStatus();
+  const main = document.getElementById("main");
+  const v = VIEWS.find(x=>x.id===S.view) || VIEWS[0];
+  if(S.setup){ main.innerHTML = viewSetup(); return; }
+  if(v.locked && needPin()){ main.innerHTML = viewPin(); return; }
+  if(!S.scheduleLoaded && !S.error){ main.innerHTML = `<div class="card muted">불러오는 중…</div>`; return; }
+  const fn = {settings:viewSettings, today:viewToday, books:viewBooks, review:viewReview, parent:viewParent, stats:viewStats, edit:viewEdit}[v.id];
+  main.innerHTML = fn();
+}
+
+/* ===================== view: kid today ===================== */
+function ringSvg(ds){
+  const r = 46, c = 2*Math.PI*r; const tot = ds.all || 0;
+  const done = (ds.done + ds.partial*0.5);
+  const p = tot ? done/tot : 0;
+  return `<svg class="ring" viewBox="0 0 110 110" role="img" aria-label="오늘 ${Math.round(p*100)}% 완료">
+    <circle cx="55" cy="55" r="${r}" fill="none" stroke="var(--none-soft)" stroke-width="12"/>
+    <circle cx="55" cy="55" r="${r}" fill="none" stroke="var(--done)" stroke-width="12" stroke-linecap="round"
+      stroke-dasharray="${(c*p).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 55 55)"/>
+    <text x="55" y="52" text-anchor="middle" font-family="Jua" font-size="24" fill="var(--text)">${ds.done}/${tot}</text>
+    <text x="55" y="72" text-anchor="middle" font-size="12" fill="var(--text2)">완료</text></svg>`;
+}
+function viewToday(){
+  const date = S.kidDate, t = today();
+  const plan = planFor(date); const ds = dayStats(date);
+  const doc = S.days[date] || {};
+  const nm = nowMin(); const isToday = date===t;
+  if(!schedItems().length){
+    return `<div class="card"><h2>아직 등록된 일정이 없어요</h2><p class="t2">보호자 화면의 ‘일정 관리’에서 일정을 추가해 주세요.</p></div>`;
+  }
+  const left = ds.all - ds.done - ds.partial - ds.miss;
+  let msg = ds.all===0 ? "오늘은 체크할 일이 없어요. 푹 쉬어요! 🌿"
+    : left===0 ? "오늘 할 일을 모두 체크했어요! 정말 멋져요 🎉"
+    : isToday ? `남은 할 일 ${left}개, 힘내요! 💪` : `${md(date)} 기록`;
+  let h = `<div class="card kid-head">${ringSvg(ds)}<div><div class="big">${isToday?"오늘":md(date)+" ("+DAYS[wdIdx(date)]+")"}</div><div class="t2" style="font-size:17px;margin-top:4px">${msg}</div></div>
+    <div class="daynav"><button class="btn" data-act="kidPrev" aria-label="이전 날">◀</button>
+    <button class="btn" data-act="kidToday" ${isToday?"disabled":""}>오늘</button>
+    <button class="btn" data-act="kidNext" aria-label="다음 날" ${date>=t?"disabled":""}>▶</button></div></div>`;
+  h += `<div class="timeline">`;
+  plan.forEach(i=>{
+    const c = doc.checks && doc.checks[i.id];
+    const s = c ? c.s : null;
+    const now = isToday && !anyT(i) && nm>=toMin(i.start) && nm<toMin(i.end);
+    const past = (date<t) || (isToday && nm>=endM(i));
+    if(i.cat==="routine"){
+      h += `<div class="item routine ${now?"now":""}"><div class="time">${anyT(i)?"언제든":esc(i.start)}</div><div class="title">${esc(i.title)} ${now?'<span class="badge now">지금</span>':""}</div></div>`;
+      return;
+    }
+    h += `<div class="item ${s?"s-"+s:""} ${now&&!s?"now":""}">
+      <div class="time">${anyT(i)?"언제든<small>오늘 안에</small>":`${esc(i.start)}<small>~ ${esc(i.end)}</small>`}</div>
+      <div><div class="title">${esc(i.title)} <span class="badge ${i.cat}">${CAT[i.cat]}</span>
+        ${now&&!s?'<span class="badge now">지금 할 일</span>':""}${past&&!s?'<span class="badge late">아직 체크 안 했어요</span>':""}</div>
+        <div class="choices">
+          ${["done","partial","miss"].map(k=>`<button class="choice ${k} ${s===k?"on":""}" data-act="check" data-id="${esc(i.id)}" data-s="${k}"><span class="e">${k==="done"?"✅":k==="partial"?"🔶":"❌"}</span>${k==="done"?"다 했어요":k==="partial"?"조금 했어요":"못 했어요"}</button>`).join("")}
+        </div>
+        ${s && s!=="done" ? `<div class="reasons">${S.openReason===i.id||!c.reason?'<span class="t2" style="font-size:14px;align-self:center">왜 그랬나요?</span>':""}${REASONS.map(r=>`<button class="reason ${c.reason===r?"on":""}" data-act="reason" data-id="${esc(i.id)}" data-r="${esc(r)}">${r}</button>`).join("")}</div>`:""}
+        ${c ? `<div class="checked-at">${hm(c.at)}에 체크했어요 · 같은 버튼을 다시 누르면 취소돼요</div>`:""}
+        ${i.cat==="reading" ? readingForm(date, i) : ""}
+      </div></div>`;
+  });
+  h += `</div>`;
+  const noteVal = S.drafts["note:"+date] != null ? S.drafts["note:"+date] : (doc.note||"");
+  h += `<div class="card" style="margin-top:14px"><h2>오늘 기분은 어땠어요?</h2>
+    <div class="moods">${MOODS.map(m=>`<button class="mood ${doc.mood===m?"on":""}" data-act="mood" data-m="${m}">${m}</button>`).join("")}</div>
+    <h3>오늘의 한마디 (보호자에게 보여요)</h3>
+    <textarea data-draft="note:${date}" placeholder="예) 수학 숙제가 어려웠어요 / 영어 단어 다 외웠어요!">${esc(noteVal)}</textarea>
+    <div style="margin-top:8px;text-align:right"><button class="btn primary" data-act="saveNote">한마디 저장</button></div></div>`;
+  return h;
+}
+
+/* ===================== view: parent live ===================== */
+function weekGrid(mon){
+  const t = today();
+  let h = `<div class="legend"><span><i class="sw" style="background:var(--done)"></i>✅ 완료</span><span><i class="sw" style="background:var(--partial)"></i>🔶 일부</span><span><i class="sw" style="background:var(--miss)"></i>❌ 못함</span><span><i class="sw" style="background:var(--none)"></i>⬜ 미체크</span><span><i class="sw" style="border:1px dashed var(--muted)"></i>예정</span></div><div class="weekgrid">`;
+  for(let k=0;k<7;k++){
+    const date = addDays(mon,k); const items = checkable(planFor(date)); const ds = dayStats(date);
+    const before = date < startDate();
+    h += `<div class="wcol ${date===t?"today":""}"><div class="wd">${DAYS[k]}<small>${md(date)}</small></div>`;
+    items.forEach(i=>{
+      let st = statusOf(date,i); if(before && st==="none") st = "future";
+      const c = S.days[date] && S.days[date].checks && S.days[date].checks[i.id];
+      const tip = `${md(date)} ${trng(i)} ${i.title} · ${ST_SHORT[st]}${c&&c.reason?" · "+c.reason:""}${c?" · "+hm(c.at)+" 체크":""}`;
+      h += `<span class="chip ${st}" data-tip="${esc(tip)}">${st==="done"?"✅":st==="partial"?"🔶":st==="miss"?"❌":st==="none"?"⬜":""} ${esc(i.title)}</span>`;
+    });
+    const mood = S.days[date] && S.days[date].mood;
+    h += `<div class="wrate">${before?"":ds.rate==null?"":pct(ds.rate)} ${mood||""}</div></div>`;
+  }
+  return h + `</div>`;
+}
+function viewParent(){
+  const t = today(); const plan = checkable(planFor(t)); const ds = dayStats(t);
+  const doc = S.days[t] || {}; const nm = nowMin();
+  const nowItem = planFor(t).find(i=>!anyT(i) && nm>=toMin(i.start) && nm<toMin(i.end));
+  const nextItem = planFor(t).find(i=>!anyT(i) && toMin(i.start)>nm);
+  const overdue = plan.filter(i=>statusOf(t,i)==="none");
+  // activity feed
+  const feed = [];
+  Object.keys(S.days).filter(d=>d>=addDays(t,-6)).forEach(d=>{
+    const dd = S.days[d]; const pl = (dd.plan&&dd.plan.length)?dd.plan:planFor(d);
+    Object.entries(dd.checks||{}).forEach(([id,c])=>{ const it = pl.find(x=>x.id===id); feed.push({at:c.at, date:d, title: it?it.title:"(삭제된 일정)", s:c.s, reason:c.reason}); });
+  });
+  feed.sort((a,b)=> (b.at||"").localeCompare(a.at||""));
+  const last = feed[0];
+  const wk = rangeStats(monday(t), t);
+
+  let h = `<div class="kpis">
+    <div class="kpi"><div class="lbl">오늘 완료</div><div class="val">${ds.done}<span class="muted" style="font-size:18px"> / ${ds.all}</span></div><div class="sub">🔶 일부 ${ds.partial} · ❌ 못함 ${ds.miss}</div></div>
+    <div class="kpi"><div class="lbl">오늘 달성률 (지난 일정 기준)</div><div class="val">${pct(ds.rate)}</div><div class="sub">완료 1점 · 일부 0.5점</div></div>
+    <div class="kpi"><div class="lbl">이번 주 달성률</div><div class="val">${pct(wk.agg.rate)}</div><div class="sub">연속 80%↑ ${wk.streak}일</div></div>
+    <div class="kpi"><div class="lbl">마지막 체크</div><div class="val" style="font-size:22px">${last?esc(hm(last.at)):"–"}</div><div class="sub">${last?esc((last.date===t?"오늘":md(last.date))+" · "+last.title):"아직 기록 없음"}</div></div>
+  </div>`;
+  h += `<div class="row"><div class="card"><h2>지금 할 일</h2>
+    <p style="font-size:17px;margin:0 0 6px">${nowItem?`<b>${esc(nowItem.title)}</b> 시간이에요 <span class="muted">(${nowItem.start}~${nowItem.end})</span>`:"지금은 일정 사이 시간이에요."}</p>
+    <p class="t2" style="margin:0">${nextItem?`다음: ${esc(nextItem.start)} ${esc(nextItem.title)}`:"오늘 남은 일정이 없어요."}</p>
+    ${overdue.length?`<div class="notice" style="margin:12px 0 0">시간이 지났는데 체크 안 된 항목: <b>${overdue.map(i=>esc(i.title)).join(", ")}</b></div>`:""}
+    ${(doc.reading||[]).length?`<h3>오늘 독서</h3><p style="margin:0">${(doc.reading||[]).map(r=>{ const sx = series().find(x=>x.id===r.sid); return `📖 ${esc(sx?sx.title:"책")} ${r.vol}권 ${r.from}~${r.to}쪽${r.done?" ✅완독":""}`; }).join("<br>")}</p>`:""}
+    ${doc.mood||doc.note?`<h3>오늘의 기분·한마디</h3><p style="margin:0;font-size:16px">${doc.mood||""} ${esc(doc.note||"")}</p>`:""}
+    </div>
+    <div class="card"><h2>최근 체크 기록</h2>${feed.length?`<ul class="feed">${feed.slice(0,12).map(f=>`<li><span class="when">${f.date===t?"오늘":md(f.date)} ${hm(f.at)}</span><span class="st ${f.s}">${ST_SHORT[f.s]}</span><span>${esc(f.title)}${f.reason?` <span class="muted">· ${esc(f.reason)}</span>`:""}</span></li>`).join("")}</ul>`:`<p class="muted">아직 체크 기록이 없어요.</p>`}</div></div>`;
+  h += `<div class="card"><h2>오늘 일정별 상태</h2><table class="list"><thead><tr><th>시간</th><th>일정</th><th>상태</th><th>체크 시각</th><th>이유</th></tr></thead><tbody>`;
+  plan.forEach(i=>{
+    const st = statusOf(t,i); const c = doc.checks && doc.checks[i.id];
+    const late = c && !anyT(i) && toMin(hm(c.at)) > toMin(i.end)+60;
+    h += `<tr><td class="t2">${trng(i)}</td><td>${esc(i.title)}</td><td><span class="st ${st}">${ST_SHORT[st]}</span></td><td>${c?hm(c.at)+(late?' <span class="muted">(늦게 체크)</span>':""):""}</td><td class="t2">${c&&c.reason?esc(c.reason):""}</td></tr>`;
+  });
+  if(!plan.length) h += `<tr><td colspan="5" class="muted">오늘은 체크할 일정이 없어요.</td></tr>`;
+  h += `</tbody></table></div>`;
+  h += `<div class="card"><h2>이번 주 한눈에 보기 <span class="muted" style="font-size:14px;font-weight:400">${md(monday(t))} ~ ${md(addDays(monday(t),6))}</span></h2>${weekGrid(monday(t))}</div>`;
+  return h;
+}
+
+/* ===================== view: stats ===================== */
+function segBar(a){
+  const tot = a.done+a.partial+a.miss+a.none; if(!tot) return `<p class="muted">아직 집계할 기록이 없어요.</p>`;
+  const part = (k,col,lab)=> a[k] ? `<div style="width:${a[k]/tot*100}%;background:${col}" data-tip="${lab} ${a[k]}개 (${Math.round(a[k]/tot*100)}%)"></div>` : "";
+  return `<div class="seg">${part("done","var(--done)","✅ 완료")}${part("partial","var(--partial)","🔶 일부")}${part("miss","var(--miss)","❌ 못함")}${part("none","var(--none)","⬜ 미체크")}</div>
+  <div class="legend" style="margin-top:8px"><span><i class="sw" style="background:var(--done)"></i>✅ 완료 ${a.done}</span><span><i class="sw" style="background:var(--partial)"></i>🔶 일부 ${a.partial}</span><span><i class="sw" style="background:var(--miss)"></i>❌ 못함 ${a.miss}</span><span><i class="sw" style="background:var(--none)"></i>⬜ 미체크 ${a.none}</span></div>`;
+}
+function hbars(rows){
+  if(!rows.length) return `<p class="muted">아직 기록이 없어요.</p>`;
+  return `<div class="hbars">${rows.map(r=>`<div class="hbar" data-tip="${esc(r.tip||"")}"><span class="name">${esc(r.name)}</span><div class="track"><div class="fill" style="width:${Math.max(0,r.v*100)}%"></div></div><span class="v">${pct(r.v)} <span class="muted" style="font-size:12px">${r.n}회</span></span></div>`).join("")}</div>`;
+}
+function viewStats(){
+  const t = today(); let from;
+  if(S.statRange==="week") from = monday(t); else if(S.statRange==="4w") from = addDays(t,-27); else from = startDate();
+  const R = rangeStats(from, t); const a = R.agg;
+  let h = `<div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><div class="seg-btns">
+    ${[["week","이번 주"],["4w","최근 4주"],["all","전체"]].map(([k,l])=>`<button class="${S.statRange===k?"on":""}" data-act="range" data-r="${k}">${l}</button>`).join("")}
+    </div><span class="t2">${md(R.from)} ~ ${md(R.to)} · ${R.dates.length}일 · 기록 시작 ${md(startDate())}</span></div>`;
+  if(!R.dates.length) return h + `<div class="card muted">기록 시작일 이후 데이터가 아직 없어요.</div>`;
+  h += `<div class="kpis">
+    <div class="kpi"><div class="lbl">달성률</div><div class="val">${pct(a.rate)}</div><div class="sub">완료 1 · 일부 0.5 · 못함/미체크 0</div></div>
+    <div class="kpi"><div class="lbl">체크한 비율</div><div class="val">${a.total?pct(a.checked/a.total):"–"}</div><div class="sub">${a.checked} / ${a.total}개 스스로 체크</div></div>
+    <div class="kpi"><div class="lbl">제때 체크</div><div class="val">${a.checked?pct(a.onTime/a.checked):"–"}</div><div class="sub">끝난 시각 +1시간 안에 체크</div></div>
+    <div class="kpi"><div class="lbl">연속 달성(80%↑)</div><div class="val">${R.streak}<span style="font-size:16px">일</span></div><div class="sub">끝난 날 기준</div></div></div>`;
+  h += `<div class="card"><h2>전체 결과 분포</h2>${segBar(a)}</div>`;
+
+  // daily trend
+  const daily = R.daily.slice(-28);
+  h += `<div class="card"><h2>일별 달성률</h2><div class="vbars">
+    <div class="gl" style="bottom:${170*0.8}px">80%</div><div class="gl" style="bottom:${170*0.5}px">50%</div>
+    ${daily.map(d=>{ const v = d.rate; const ht = v==null?0:Math.max(v*100,1.5); return `<div class="b" data-tip="${md(d.date)} (${DAYS[wdIdx(d.date)]}) · ${v==null?"체크할 일정 없음":pct(v)+` · ✅${d.ds.done} 🔶${d.ds.partial} ❌${d.ds.miss} ⬜${d.ds.none}`}"><div class="f ${v===0?"zero":""}" style="height:${v==null?0:ht}%"></div></div>`; }).join("")}
+  </div><div class="vlabels">${daily.map(d=>`<span>${daily.length>14?(wdIdx(d.date)===0?md(d.date):""):md(d.date).split("/")[1]+"("+DAYS[wdIdx(d.date)]+")"}</span>`).join("")}</div></div>`;
+
+  const titles = Object.entries(R.byTitle).map(([k,v])=>({name:k, v:v.pts/v.n, n:v.n, tip:`${k} · ✅${v.done} 🔶${v.partial} ❌${v.miss} ⬜${v.none}`})).sort((x,y)=>y.v-x.v);
+  const wds = DAYS.map((d,k)=>R.byWd[k]?{name:d+"요일", v:R.byWd[k].pts/R.byWd[k].n, n:R.byWd[k].n}:null).filter(Boolean);
+  h += `<div class="row"><div class="card"><h2>일정별 달성률</h2>${hbars(titles)}</div><div class="card"><h2>요일별 달성률</h2>${hbars(wds)}</div></div>`;
+  const rs = Object.entries(R.reasons).sort((x,y)=>y[1]-x[1]); const rTot = rs.reduce((s,x)=>s+x[1],0);
+  h += `<div class="row"><div class="card"><h2>못 하거나 일부만 한 이유</h2>${rs.length?hbars(rs.map(([k,v])=>({name:k,v:v/rTot,n:v}))):`<p class="muted">놓친 항목이 없어요 👏</p>`}</div>
+    <div class="card"><h2>일정별 상세 표</h2><table class="list"><thead><tr><th>일정</th><th class="num">✅</th><th class="num">🔶</th><th class="num">❌</th><th class="num">⬜</th><th class="num">달성률</th></tr></thead><tbody>
+    ${Object.entries(R.byTitle).sort((x,y)=>x[0].localeCompare(y[0],"ko")).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="num">${v.done}</td><td class="num">${v.partial}</td><td class="num">${v.miss}</td><td class="num">${v.none}</td><td class="num"><b>${pct(v.pts/v.n)}</b></td></tr>`).join("")}
+    </tbody></table></div></div>`;
+  return h;
+}
+
+/* ===================== view: review ===================== */
+function starRow(field, val, enabled){
+  return `<div class="stars">${[1,2,3,4,5].map(n=>`<button class="star ${val>=n?"on":""}" ${enabled?`data-act="star" data-f="${field}" data-n="${n}"`:"disabled"} aria-label="${n}점">⭐</button>`).join("")}</div>`;
+}
+function draftOr(key, v){ return S.drafts[key]!=null ? S.drafts[key] : (v||""); }
+function viewReview(){
+  const mon = S.week; const sun = addDays(mon,6); const t = today();
+  const R = rangeStats(mon, sun); const rv = S.reviews[mon] || {}; const kid = rv.kid||{}; const par = rv.parent||{};
+  const canParent = !needPin();
+  const titles = Object.entries(R.byTitle).filter(([k,v])=>v.n>=1).map(([k,v])=>({k, r:v.pts/v.n, n:v.n}));
+  const best = titles.filter(x=>x.r>=0.8).sort((a,b)=>b.r-a.r||b.n-a.n).slice(0,3);
+  const worst = titles.filter(x=>x.r<0.7).sort((a,b)=>a.r-b.r||b.n-a.n).slice(0,3);
+  const topReason = Object.entries(R.reasons).sort((a,b)=>b[1]-a[1])[0];
+  const moods = R.dates.map(d=>S.days[d]&&S.days[d].mood).filter(Boolean);
+  const notes = R.dates.map(d=>S.days[d]&&S.days[d].note?{d, n:S.days[d].note}:null).filter(Boolean);
+  const kidKey = k=>"rv:"+mon+":kid:"+k, parKey = k=>"rv:"+mon+":parent:"+k;
+
+  let h = `<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <button class="btn" data-act="wkPrev">◀</button><b style="font-size:18px">${md(mon)} ~ ${md(sun)} 주간 리뷰</b>
+    <button class="btn" data-act="wkNext" ${addDays(mon,7)>t?"disabled":""}>▶</button>
+    ${mon!==monday(t)?`<button class="btn sm" data-act="wkNow">이번 주</button>`:""}
+    <span class="t2" style="margin-left:auto">이번 주 달성률 <b style="font-size:20px;color:var(--text)">${pct(R.agg.rate)}</b></span></div>`;
+  h += `<div class="card"><h2>한 주 돌아보기</h2>${weekGrid(mon)}</div>`;
+  h += `<div class="card"><h2>함께 이야기해 볼 것</h2><ul class="talk">
+    <li>잘 지킨 일정: ${best.length?best.map(x=>`<b>${esc(x.k)}</b> (${pct(x.r)})`).join(", "):"아직 없어요"}</li>
+    <li>어려웠던 일정: ${worst.length?worst.map(x=>`<b>${esc(x.k)}</b> (${pct(x.r)})`).join(", "):"없어요 👍"}</li>
+    <li>가장 많았던 이유: ${topReason?`<b>${esc(topReason[0])}</b> ${topReason[1]}번`:"없어요"}</li>
+    <li>이번 주 독서: ${(()=>{ const rs = readStats(mon, sun); return rs.logs.length ? `<b>${rs.pages}쪽</b> (${rs.days}일)${rs.finished?` · 완독 ${rs.finished}권 🎉`:""}` : "기록 없음"; })()}</li>
+    <li>이번 주 기분: ${moods.length?moods.join(" "):"기록 없음"}</li>
+    ${notes.length?`<li>${esc(KN())}의 한마디: ${notes.map(x=>`<span class="muted">${md(x.d)}</span> ${esc(x.n)}`).join(" · ")}</li>`:""}
+  </ul></div>`;
+  h += `<div class="row">
+   <div class="card"><h2>🙋 ${esc(KN())}의 리뷰</h2>
+    <div class="field"><label>이번 주 나에게 주는 별점</label>${starRow("kid.stars", kid.stars||0, true)}</div>
+    <div class="field"><label>잘한 점</label><textarea data-draft="${kidKey("good")}" placeholder="이번 주에 잘한 것">${esc(draftOr(kidKey("good"),kid.good))}</textarea></div>
+    <div class="field"><label>아쉬운 점</label><textarea data-draft="${kidKey("bad")}" placeholder="잘 안 됐던 것, 이유">${esc(draftOr(kidKey("bad"),kid.bad))}</textarea></div>
+    <div class="field"><label>다음 주 목표</label><textarea data-draft="${kidKey("goal")}" placeholder="다음 주에 꼭 해 볼 것">${esc(draftOr(kidKey("goal"),kid.goal))}</textarea></div>
+    <div style="text-align:right"><button class="btn primary" data-act="saveReview" data-who="kid">${esc(KN())} 리뷰 저장</button></div>
+    ${kid.at?`<div class="checked-at">${md(kid.at.slice(0,10))} ${hm(kid.at)} 저장됨</div>`:""}</div>
+   <div class="card"><h2>👨‍👩‍👦 보호자의 리뷰 ${canParent?"":'<span class="pill">🔒 보호자 잠금</span>'}</h2>
+    <div class="field"><label>칭찬 스티커</label>${starRow("parent.stars", par.stars||0, canParent)}</div>
+    <div class="field"><label>칭찬 한마디</label><textarea ${canParent?"":"disabled"} data-draft="${parKey("praise")}" placeholder="구체적으로 칭찬해 주세요">${esc(draftOr(parKey("praise"),par.praise))}</textarea></div>
+    <div class="field"><label>함께 정한 약속 / 일정 조정</label><textarea ${canParent?"":"disabled"} data-draft="${parKey("promise")}" placeholder="예) 화요일 영어 단어는 저녁 전으로 옮기기">${esc(draftOr(parKey("promise"),par.promise))}</textarea></div>
+    <div style="text-align:right"><button class="btn primary" data-act="saveReview" data-who="parent" ${canParent?"":"disabled"}>보호자 리뷰 저장</button></div>
+    ${par.at?`<div class="checked-at">${md(par.at.slice(0,10))} ${hm(par.at)} 저장됨</div>`:""}</div></div>`;
+  return h;
+}
+function saveReview(patch){
+  if(!S.db){ toast("저장 기능이 연결되지 않았어요."); return; }
+  const mon = S.week;
+  const cur = JSON.parse(JSON.stringify(S.reviews[mon] || {week:mon}));
+  patch(cur); cur.week = mon; cur.updatedAt = new Date().toISOString();
+  S.reviews[mon] = cur; render();
+  enqueue("reviews/"+mon, ()=> S.db.doc("reviews/"+mon).set(JSON.parse(JSON.stringify(S.reviews[mon]))));
+}
+
+/* ===================== view: edit ===================== */
+function viewEdit(){
+  const items = schedItems();
+  const ed = S.editId ? items.find(i=>i.id===S.editId) : null;
+  const f = ed || {day:wdIdx(today()), start:"16:00", end:"17:00", title:"", cat:"study"};
+  let h = `<div class="card"><h2>${ed?"일정 수정":"일정 추가"}</h2><form class="editform" id="editForm">
+    <label>요일<select name="day">${DAYS.map((d,k)=>`<option value="${k}" ${f.day===k?"selected":""}>${d}요일</option>`).join("")}</select></label>
+    <label>시작<input type="time" name="start" value="${esc(f.start)}"></label>
+    <label>끝<input type="time" name="end" value="${esc(f.end)}"></label>
+    <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" name="anytime" ${ed&&anyT(ed)?"checked":""} style="width:20px;height:20px"> 시간 없이 (오늘 안에 언제든)</label>
+    <label style="grid-column:span 2">일정 이름<input type="text" name="title" value="${esc(f.title)}" maxlength="30" required placeholder="예) 영어 숙제"></label>
+    <label>종류<select name="cat">${Object.entries(CAT).map(([k,v])=>`<option value="${k}" ${f.cat===k?"selected":""}>${v}${k==="routine"?" (체크 안 함)":""}</option>`).join("")}</select></label>
+    <div style="display:flex;gap:8px"><button class="btn primary" type="submit">${ed?"수정 저장":"추가"}</button>${ed?`<button class="btn" type="button" data-act="cancelEdit">취소</button>`:""}</div>
+  </form><p class="muted" style="font-size:13px;margin:10px 0 0">‘생활’ 종류(학교, 저녁, 놀기 등)는 시간표에만 보이고 체크·통계에서는 빠져요. 일정을 바꾸면 오늘부터 반영되고, 지난 기록은 그대로 남아요.</p></div>`;
+  h += `<div class="card"><h2>주간 시간표</h2>`;
+  DAYS.forEach((d,k)=>{
+    const list = items.filter(i=>i.day===k).sort((a,b)=>toMin(a.start)-toMin(b.start));
+    h += `<div class="daysec"><h3>${d}요일 <span class="muted" style="font-weight:400">${list.filter(i=>i.cat!=="routine").length}개 체크</span></h3><table class="list"><tbody>`;
+    list.forEach(i=>{
+      h += `<tr><td class="t2" style="width:120px">${trng(i)}</td><td>${esc(i.title)}</td><td style="width:110px"><span class="badge ${i.cat}">${CAT[i.cat]}</span></td>
+        <td style="width:150px;text-align:right">${S.delConfirm===i.id?`<button class="btn sm danger" data-act="delYes" data-id="${esc(i.id)}">삭제 확인</button> <button class="btn sm" data-act="delNo">취소</button>`:`<button class="btn sm" data-act="edit" data-id="${esc(i.id)}">수정</button> <button class="btn sm danger" data-act="del" data-id="${esc(i.id)}">삭제</button>`}</td></tr>`;
+    });
+    if(!list.length) h += `<tr><td class="muted">일정 없음</td></tr>`;
+    h += `</tbody></table></div>`;
+  });
+  h += `</div>`;
+  h += `<div class="card"><h2>아이 이름</h2><p class="t2" style="margin-top:0">화면·위젯·알림에 보일 부르는 이름이에요 (예: 민수). 이름은 코드에 들어가지 않고 Firebase에만 저장돼요.</p>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="text" maxlength="12" data-draft="kidname" value="${esc(S.drafts["kidname"]!=null?S.drafts["kidname"]:kidName())}" placeholder="예) 민수" style="width:180px"><button class="btn primary" data-act="saveKidName">저장</button></div></div>`;
+  h += `<div class="card"><h2>보호자 잠금 (PIN)</h2><p class="t2" style="margin-top:0">PIN을 정하면 아이 탭에서 ‘보호자 현황·통계·일정 관리’를 열 때 PIN을 물어봐요. 간단한 잠금이라 보안 장치는 아니에요.</p>
+    <form id="pinForm" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="숫자 4자리"><button class="btn primary" type="submit">PIN 설정</button>
+    ${S.settings.pin?`<button class="btn danger" type="button" data-act="pinOff">PIN 끄기</button><span class="pill">현재 설정됨</span>`:`<span class="pill">현재 꺼짐</span>`}</form>
+    <h3>기록 시작일</h3><form id="startForm" style="display:flex;gap:8px;align-items:center"><input type="date" name="sd" value="${esc(startDate())}"><button class="btn" type="submit">변경</button><span class="muted" style="font-size:13px">이 날 이전은 통계에서 빠져요.</span></form></div>`;
+  return h;
+}
+function saveSchedule(items, extra){
+  if(!S.db){ toast("저장 기능이 연결되지 않았어요."); return; }
+  const next = Object.assign({}, S.schedule||{}, extra||{}, {items, updatedAt:new Date().toISOString()});
+  if(!next.startDate) next.startDate = today();
+  S.schedule = next; render();
+  enqueue("schedule/main", ()=> S.db.doc("schedule/main").set(JSON.parse(JSON.stringify(S.schedule))));
+}
+
+/* ===================== PIN ===================== */
+function viewPin(){
+  return `<div class="card pinbox"><h2>🔒 보호자 화면</h2><p class="t2">PIN 4자리를 입력하세요</p>
+    <div class="dots">${"●".repeat(S.pinEntry.length)}${"○".repeat(4-S.pinEntry.length)}</div>
+    <div class="pad">${[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map(k=>k===""?"<span></span>":`<button data-act="pin" data-k="${k}">${k}</button>`).join("")}</div>
+    ${S.role==="kid"?"":`<label style="display:block;margin-top:12px;font-size:14px" class="t2"><input type="checkbox" id="remember"> 이 기기 기억하기 (보호자 휴대폰용)</label>`}</div>`;
+}
+
+/* ===================== events ===================== */
+function toast(m){ const t = document.getElementById("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(toast._t); toast._t = setTimeout(()=>t.style.display="none", 3200); }
+
+document.addEventListener("input", e=>{
+  const k = e.target.getAttribute && e.target.getAttribute("data-draft"); if(k) S.drafts[k] = e.target.value;
+});
+document.addEventListener("change", e=>{
+  const el = e.target; if(!el.getAttribute) return;
+  const ck = el.getAttribute("data-draft-chk"); if(ck){ S.drafts[ck] = el.checked; return; }
+  const act = el.getAttribute("data-act-change"); if(!act) return;
+  const key = el.getAttribute("data-key");
+  if(act==="rdSeries"){ S.drafts[key+":sid"] = el.value; delete S.drafts[key+":vol"]; }
+  if(act==="rdVol"){ S.drafts[key+":vol"] = el.value; }
+  el.blur(); render();
+});
+document.addEventListener("focusout", ()=>{ setTimeout(()=>{ if(pendingRender) render(); }, 50); });
+
+document.addEventListener("click", e=>{
+  const b = e.target.closest("[data-act]"); if(!b) return;
+  const a = b.dataset.act;
+  if(b.tagName==="A") e.preventDefault();
+  switch(a){
+    case "lock": if(S.role==="parent") break; S.unlocked=false; store("hs_unlocked",null); try{sessionStorage.removeItem("hs_unlocked");}catch(_){} location.hash="#today"; render(); break;
+    case "check": setCheck(S.kidDate, b.dataset.id, b.dataset.s); break;
+    case "reason": setReason(S.kidDate, b.dataset.id, b.dataset.r); break;
+    case "mood": saveDay(S.kidDate, d=>{ d.mood = d.mood===b.dataset.m ? "" : b.dataset.m; }); break;
+    case "saveNote": { const k="note:"+S.kidDate; const v = S.drafts[k]!=null?S.drafts[k]:((S.days[S.kidDate]||{}).note||""); delete S.drafts[k]; saveDay(S.kidDate, d=>{ d.note = v.trim().slice(0,300); }); toast("한마디를 저장했어요 ✉️"); break; }
+    case "kidPrev": S.kidDate = addDays(S.kidDate,-1); render(); break;
+    case "kidNext": if(S.kidDate<today()) S.kidDate = addDays(S.kidDate,1); render(); break;
+    case "kidToday": S.kidDate = today(); render(); break;
+    case "range": S.statRange = b.dataset.r; render(); break;
+    case "wkPrev": S.week = addDays(S.week,-7); render(); break;
+    case "wkNext": S.week = addDays(S.week,7); render(); break;
+    case "wkNow": S.week = monday(today()); render(); break;
+    case "star": { const [who,f] = b.dataset.f.split("."); const n = +b.dataset.n;
+      saveReview(r=>{ r[who] = r[who]||{}; r[who][f] = r[who][f]===n ? n-1 : n; r[who].at = new Date().toISOString(); }); break; }
+    case "saveReview": { const who = b.dataset.who; const mon = S.week; const fields = who==="kid"?["good","bad","goal"]:["praise","promise"];
+      const cur = (S.reviews[mon]||{})[who]||{};
+      saveReview(r=>{ r[who] = r[who]||{}; fields.forEach(f=>{ const k = "rv:"+mon+":"+who+":"+f; const v = S.drafts[k]!=null?S.drafts[k]:(cur[f]||""); r[who][f] = String(v).trim().slice(0,1000); delete S.drafts[k]; }); r[who].at = new Date().toISOString(); });
+      toast("리뷰를 저장했어요"); break; }
+    case "edit": S.editId = b.dataset.id; S.delConfirm=null; render(); window.scrollTo({top:0,behavior:"smooth"}); break;
+    case "cancelEdit": S.editId = null; render(); break;
+    case "del": S.delConfirm = b.dataset.id; render(); break;
+    case "delNo": S.delConfirm = null; render(); break;
+    case "delYes": { const id = b.dataset.id; S.delConfirm=null; if(S.editId===id) S.editId=null; saveSchedule(schedItems().filter(i=>i.id!==id)); toast("삭제했어요"); break; }
+    case "pinOff": setPin(""); break;
+    case "retryBoot": boot(); break;
+    case "setupCfg": setupConfig(); break;
+    case "setupNewFam": setupNewFamily(); break;
+    case "setupJoinFam": setupJoinFamily(); break;
+    case "setupStep": S.setup.step = b.dataset.step; S.setup.err = ""; render(); break;
+    case "setupRole": setupRole(b.dataset.role); break;
+    case "setupKidPin": setupKidPin(); break;
+    case "setupDone": finishSetup(); break;
+    case "upCheck": checkUpdate(); render(); break;
+    case "upGet": if(HasAndroid && S.update && S.update.url){ S.updateFailed = false; safe(()=>Android.downloadUpdate(S.update.url, String(S.update.latest||""))); } break;
+    case "upWeb": if(HasAndroid && S.update) safe(()=>Android.openUrl(S.update.page || S.update.url)); break;
+    case "saveKidName": { const v = S.drafts["kidname"] != null ? S.drafts["kidname"] : kidName(); delete S.drafts["kidname"]; saveKidName(v); break; }
+    case "ntStyle": { const st = notifySettings(); st[b.dataset.k] = b.dataset.v; if(HasAndroid) safe(()=>Android.setNotifySettings(st.lead, st.end, st.routine)); toast("알림 설정을 바꿨어요"); setTimeout(render, 200); break; }
+    case "ntTest": if(HasAndroid) safe(()=>Android.testNotify()); break;
+    case "ntOpen": if(HasAndroid) safe(()=>Android.openNotificationSettings()); break;
+    case "wgStyle": { const st = widgetStyle(); st[b.dataset.k] = b.dataset.v; saveWidgetStyle(st); break; }
+    case "wgPin": if(HasAndroid){ const ok = safe(()=>Android.requestPinWidget(), false); if(!ok) toast("이 홈 화면은 자동 추가를 지원하지 않아요. 아래 방법으로 직접 추가해 주세요."); setTimeout(render, 3000); } break;
+    case "wgRefresh": if(HasAndroid){ pushWidgetNow(); safe(()=>Android.refreshWidgets()); toast("위젯을 새로고침했어요"); } break;
+    case "openAndroidSettings": if(HasAndroid) safe(()=>Android.openSettings()); break;
+    case "changeRole": S.setup = {step:"role"}; render(); break;
+    case "resetAll": if(S.delConfirm!=="reset"){ S.delConfirm="reset"; render(); break; }
+      ["cfg","fam","role","kiosk"].forEach(k=>Pref.set(k,""));
+      location.hash = ""; location.reload(); break;
+    case "copyFam": try{ navigator.clipboard.writeText(Pref.get("fam")).then(()=>toast("가족 코드를 복사했어요")).catch(()=>toast("코드를 직접 적어 주세요")); }catch(_){ toast("코드를 직접 적어 주세요"); } break;
+    case "rdSave": saveReading(S.kidDate, b.dataset.id, b.dataset.sid, +b.dataset.vol); break;
+    case "rdDel": { const date = b.dataset.date, ix = +b.dataset.ix; saveDay(date, d=>{ d.reading = (d.reading||[]).filter((_,k)=>k!==ix); }); toast("기록을 지웠어요"); break; }
+    case "serDel": S.delConfirm = "s:"+b.dataset.id; render(); break;
+    case "serDelYes": S.delConfirm = null; saveSeries(series().filter(x=>x.id!==b.dataset.id)); break;
+    case "fullscreen": { const el = document.documentElement;
+      try{ const pr = document.fullscreenElement ? document.exitFullscreen() : (el.requestFullscreen ? el.requestFullscreen() : (el.webkitRequestFullscreen && el.webkitRequestFullscreen()));
+        if(pr && pr.catch) pr.catch(()=>toast("이 화면에서는 전체화면을 쓸 수 없어요. 태블릿의 ‘앱 고정/사용법 유도’를 써 주세요.")); }
+      catch(_){ toast("이 화면에서는 전체화면을 쓸 수 없어요."); } break; }
+    case "pin": { const k = b.dataset.k;
+      if(k==="⌫") S.pinEntry = S.pinEntry.slice(0,-1); else if(S.pinEntry.length<4) S.pinEntry += k;
+      if(S.pinEntry.length===4){
+        if(S.pinEntry===String(S.settings.pin)){ S.unlocked = true; const rem = document.getElementById("remember"); if(rem && rem.checked) store("hs_unlocked","1"); try{sessionStorage.setItem("hs_unlocked","1");}catch(_){} }
+        else toast("PIN이 맞지 않아요");
+        S.pinEntry = "";
+      }
+      render(); break; }
+  }
+});
+function setPin(p){
+  if(!S.db){ toast("저장 기능이 연결되지 않았어요."); return; }
+  S.settings = Object.assign({}, S.settings, {pin:p}); S.unlocked = true; try{sessionStorage.setItem("hs_unlocked","1");}catch(_){}
+  render(); enqueue("config/settings", ()=> S.db.doc("config/settings").set(JSON.parse(JSON.stringify(S.settings))));
+  toast(p ? "PIN을 설정했어요" : "PIN을 껐어요");
+}
+document.addEventListener("submit", e=>{
+  e.preventDefault(); const f = e.target;
+  if(f.id==="editForm"){
+    const fd = new FormData(f);
+    const it = {day:+fd.get("day"), start:fd.get("start"), end:fd.get("end"), title:String(fd.get("title")||"").trim(), cat:fd.get("cat")};
+    if(!it.title){ toast("일정 이름을 적어 주세요"); return; }
+    if(fd.get("anytime")){ it.start = ""; it.end = ""; }
+    else if(!it.start || !it.end){ toast("시작·끝 시간을 넣거나 ‘시간 없이’를 체크해 주세요"); return; }
+    else if(toMin(it.end) <= toMin(it.start)){ toast("끝 시간이 시작 시간보다 늦어야 해요"); return; }
+    let items = schedItems().slice();
+    if(S.editId){ items = items.map(i=> i.id===S.editId ? Object.assign({}, i, it) : i); }
+    else { it.id = "i"+Date.now().toString(36)+Math.random().toString(36).slice(2,5); items.push(it); }
+    S.editId = null; saveSchedule(items); toast("저장했어요");
+  } else if(f.hasAttribute("data-series")){
+    const fd = new FormData(f); const sid = f.getAttribute("data-series");
+    const title = String(fd.get("title")||"").trim(); const volumes = parseInt(fd.get("volumes"),10); const pages = parseInt(fd.get("pages"),10) || 0;
+    if(!title){ toast("제목을 적어 주세요"); return; }
+    if(!(volumes>=1 && volumes<=200)){ toast("권수는 1~200 사이로 적어 주세요"); return; }
+    let list = series().slice();
+    if(sid) list = list.map(x=> x.id===sid ? Object.assign({}, x, {title, volumes, pages}) : x);
+    else list.push({id:"s"+Date.now().toString(36), title, volumes, pages});
+    saveSeries(list); toast("저장했어요");
+  } else if(f.id==="pinForm"){
+    const p = String(new FormData(f).get("pin")||""); if(!/^\d{4}$/.test(p)){ toast("숫자 4자리로 입력해 주세요"); return; } setPin(p);
+  } else if(f.id==="startForm"){
+    const sd = String(new FormData(f).get("sd")||""); if(!/^\d{4}-\d{2}-\d{2}$/.test(sd)) return; saveSchedule(schedItems(), {startDate:sd}); toast("기록 시작일을 바꿨어요");
+  }
+});
+
+/* tooltip */
+const tip = document.getElementById("tip");
+function showTip(el, x, y){ tip.textContent = el.getAttribute("data-tip"); tip.style.display = "block";
+  const w = tip.offsetWidth; tip.style.left = Math.min(window.innerWidth-w-8, Math.max(8, x+12))+"px"; tip.style.top = (y+16)+"px"; }
+document.addEventListener("mousemove", e=>{ const el = e.target.closest && e.target.closest("[data-tip]"); if(el && el.getAttribute("data-tip")) showTip(el, e.clientX, e.clientY); else tip.style.display="none"; });
+document.addEventListener("touchstart", e=>{ const el = e.target.closest && e.target.closest("[data-tip]"); if(el && el.getAttribute("data-tip")){ const t = e.touches[0]; showTip(el, t.clientX, t.clientY); clearTimeout(showTip._t); showTip._t = setTimeout(()=>tip.style.display="none", 2500);} }, {passive:true});
+
+/* ===================== app platform (Firebase + Android) ===================== */
+const HasAndroid = (()=>{ try{ return !!(window.Android && window.Android.isApp && window.Android.isApp()); }catch(e){ return false; } })();
+function safe(fn, dflt){ try{ return fn(); }catch(e){ return dflt; } }
+const Pref = {
+  get(k){ if(HasAndroid){ const v = safe(()=>Android.getPref(k), ""); return v || ""; } return load("hs_"+k) || ""; },
+  set(k,v){ if(HasAndroid){ safe(()=>Android.setPref(k, v||"")); return; } store("hs_"+k, v ? v : null); }
+};
+const SEED_ITEMS = []; // 개인 시간표는 코드에 넣지 않음 – 일정 관리에서 입력
+const AppDB = {
+  fs:null, key:null,
+  async start(cfg){
+    const key = JSON.stringify(cfg);
+    if(this.fs && this.key===key) return this.fs;
+    if(typeof firebase==="undefined") throw new Error("Firebase 라이브러리를 불러오지 못했어요");
+    if(firebase.apps.length){ await Promise.all(firebase.apps.map(a=>a.delete())); this.fs = null; }
+    firebase.initializeApp(cfg);
+    const fs = firebase.firestore();
+    try{ await fs.enablePersistence({synchronizeTabs:false}); }catch(e){}
+    const auth = firebase.auth();
+    await new Promise(res=>{ const un = auth.onAuthStateChanged(()=>{ un(); res(); }); });
+    if(!auth.currentUser) await auth.signInAnonymously();
+    this.fs = fs; this.key = key; return fs;
+  },
+  wrap(fam){
+    const fs = this.fs, base = "families/"+fam+"/";
+    const meta = m => ({fromCache: !!(m&&m.fromCache), hasPendingWrites: !!(m&&m.hasPendingWrites)});
+    const wd = s => ({id:s.id, exists:s.exists, data:()=>s.data(), metadata:meta(s.metadata)});
+    const er = e => ({code: e && e.code==="permission-denied" ? "permission" : "unavailable", message: e && e.message});
+    return {
+      fam,
+      doc(p){ const r = fs.doc(base+p); return {
+        get: async()=>wd(await r.get()),
+        set: d=>r.set(d), update: d=>r.update(d), delete: ()=>r.delete(),
+        onSnapshot: (n,e)=> r.onSnapshot({includeMetadataChanges:true}, s=>n(wd(s)), x=>e&&e(er(x)))
+      }; },
+      collection(p){ const r = fs.collection(base+p); return {
+        onSnapshot: (n,e)=> r.onSnapshot({includeMetadataChanges:true}, s=>n({docs:s.docs.map(wd), size:s.size, empty:s.empty, metadata:meta(s.metadata)}), x=>e&&e(er(x)))
+      }; }
+    };
+  }
+};
+function withTimeout(p, ms, msg){ return Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg||"시간이 너무 오래 걸려요")), ms))]); }
+function parseConfig(txt){
+  const cfg = {}; const re = /["']?(apiKey|authDomain|projectId|storageBucket|messagingSenderId|appId)["']?\s*:\s*["']([^"']+)["']/g; let m;
+  while((m = re.exec(txt||""))) cfg[m[1]] = m[2].trim();
+  if(!cfg.apiKey || !cfg.projectId || !cfg.appId) return null;
+  if(!cfg.authDomain) cfg.authDomain = cfg.projectId + ".firebaseapp.com";
+  return cfg;
+}
+function authMsg(e){
+  const c = (e && e.code) || "";
+  if(c.includes("operation-not-allowed") || c.includes("admin-restricted")) return "Authentication에서 ‘익명(Anonymous)’ 로그인을 사용 설정해 주세요.";
+  if(c.includes("api-key")) return "apiKey가 맞지 않아요. 설정 값을 다시 복사해 주세요.";
+  if(c.includes("unauthorized-domain")) return "Authentication > 설정 > 승인된 도메인에 appassets.androidplatform.net 을 추가해 주세요.";
+  if(c.includes("network")) return "인터넷 연결을 확인해 주세요.";
+  if(c.includes("permission")) return "Firestore 보안 규칙을 확인해 주세요.";
+  return (e && e.message) || "연결하지 못했어요.";
+}
+function genFamCode(){
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; const r = new Uint32Array(12); crypto.getRandomValues(r);
+  let s = ""; for(let i=0;i<12;i++){ s += A[r[i]%A.length]; if(i===3||i===7) s += "-"; } return s;
+}
+function normFam(t){ const x = String(t||"").toUpperCase().replace(/[^A-Z0-9]/g,""); return x.length===12 ? x.slice(0,4)+"-"+x.slice(4,8)+"-"+x.slice(8) : ""; }
+
+async function boot(){
+  const cfgTxt = Pref.get("cfg"), fam = Pref.get("fam"), role = Pref.get("role");
+  S.role = role; S.error = null; S.errorMsg = "";
+  if(role==="parent") S.unlocked = true;
+  if(!cfgTxt){ S.setup = {step:"config"}; route(); return; }
+  try{ await withTimeout(AppDB.start(JSON.parse(cfgTxt)), 20000, "Firebase 연결 시간이 초과됐어요"); }
+  catch(e){ if(!fam || !role){ S.setup = {step:"config", err: authMsg(e)}; } else { S.error = "init"; S.errorMsg = authMsg(e); } route(); return; }
+  if(!fam){ S.setup = {step:"family"}; route(); return; }
+  S.db = AppDB.wrap(fam); connect();
+  if(!role){ S.setup = {step:"role"}; route(); return; }
+  S.setup = null; route();
+  setTimeout(checkUpdate, 3000);
+}
+async function setupConfig(){
+  const txt = (S.drafts["setup:cfg"] != null ? S.drafts["setup:cfg"] : "");
+  const cfg = parseConfig(txt);
+  if(!cfg){ S.setup.err = "apiKey, projectId, appId가 들어 있는 firebaseConfig 전체를 붙여 넣어 주세요."; render(); return; }
+  S.setup.busy = true; S.setup.err = ""; render();
+  try{ await withTimeout(AppDB.start(cfg), 20000, "Firebase 연결 시간이 초과됐어요"); Pref.set("cfg", JSON.stringify(cfg)); delete S.drafts["setup:cfg"]; S.setup = null; boot(); return; }
+  catch(e){ S.setup.err = authMsg(e); S.setup.busy = false; }
+  render();
+}
+async function setupNewFamily(){
+  const fam = genFamCode(); S.setup.busy = true; S.setup.err = ""; render();
+  try{
+    const db = AppDB.wrap(fam); const now = new Date().toISOString();
+    await withTimeout(db.doc("schedule/main").set({startDate: today(), items: SEED_ITEMS, updatedAt: now}), 20000);
+    await withTimeout(db.doc("reading/main").set({series:[{id:"wh", title:"세계사", volumes:10, pages:0}], updatedAt: now}), 20000);
+    await withTimeout(db.doc("config/settings").set({pin:"", createdAt: now}), 20000);
+    Pref.set("fam", fam); S.db = db; connect(); S.setup = {step:"famCreated", fam};
+  }catch(e){ S.setup.busy = false; S.setup.err = "가족 데이터를 만들지 못했어요. " + authMsg(e); }
+  render();
+}
+async function setupJoinFamily(){
+  const fam = normFam(S.drafts["setup:fam"]);
+  if(!fam){ S.setup.err = "가족 코드 12자리를 정확히 입력해 주세요."; render(); return; }
+  S.setup.busy = true; S.setup.err = ""; render();
+  try{
+    const db = AppDB.wrap(fam); const snap = await withTimeout(db.doc("schedule/main").get(), 20000);
+    if(!snap.exists){ S.setup.busy = false; S.setup.err = "그 가족 코드로 만든 기록이 없어요. 코드를 다시 확인해 주세요."; render(); return; }
+    Pref.set("fam", fam); S.db = db; connect(); S.setup = {step:"role"};
+  }catch(e){ S.setup.busy = false; S.setup.err = authMsg(e); }
+  render();
+}
+function setupRole(role){
+  Pref.set("role", role); S.role = role;
+  if(role==="parent"){ S.unlocked = true; finishSetup(); return; }
+  S.unlocked = false; try{ sessionStorage.removeItem("hs_unlocked"); }catch(_){} store("hs_unlocked", null);
+  if(S.settings.pin){ finishSetup(); return; }
+  S.setup = {step:"kidPin"}; render();
+}
+function setupKidPin(){
+  const p = String(S.drafts["setup:pin"]||"");
+  if(!/^\d{4}$/.test(p)){ S.setup.err = "숫자 4자리로 정해 주세요."; render(); return; }
+  delete S.drafts["setup:pin"]; setPin(p); S.unlocked = false; try{ sessionStorage.removeItem("hs_unlocked"); }catch(_){}
+  finishSetup();
+}
+function finishSetup(){
+  setTimeout(checkUpdate, 3000);
+  S.setup = null; location.hash = S.role==="parent" ? "#parent" : "#today"; route();
+}
+function viewSetup(){
+  const st = S.setup; const busy = st.busy ? "disabled" : ""; const err = st.err ? `<div class="err">${esc(st.err)}</div>` : "";
+  let h = `<div class="setup">`;
+  if(st.step==="config"){
+    h += `<div class="card"><div class="stepno">1 / 3 단계</div><h2>Firebase 연결</h2>
+      <p class="t2" style="margin-top:0">Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹)에 있는 <b>firebaseConfig</b> 내용을 통째로 붙여 넣어 주세요. 처음 한 번만 하면 돼요.</p>
+      <textarea data-draft="setup:cfg" placeholder="const firebaseConfig = {&#10;  apiKey: &quot;...&quot;,&#10;  authDomain: &quot;...&quot;,&#10;  projectId: &quot;...&quot;,&#10;  appId: &quot;...&quot;&#10;};">${esc(S.drafts["setup:cfg"]||"")}</textarea>
+      ${err}<div style="margin-top:10px;text-align:right"><button class="btn primary" data-act="setupCfg" ${busy}>${st.busy?"연결 중…":"연결하기"}</button></div></div>`;
+  } else if(st.step==="family"){
+    h += `<div class="card"><div class="stepno">2 / 3 단계</div><h2>가족 연결</h2>
+      <p class="t2" style="margin-top:0">아이 탭과 보호자 폰은 같은 <b>가족 코드</b>로 연결돼요.</p>
+      <div class="big-choice"><button data-act="setupNewFam" ${busy}><span>✨</span>처음 설치해요<small>새 가족 코드를 만들고 시간표를 넣어요</small></button>
+      <button data-act="setupStep" data-step="join" ${busy}><span>🔗</span>코드가 있어요<small>다른 기기에서 받은 코드 입력</small></button></div>${err}</div>`;
+  } else if(st.step==="join"){
+    h += `<div class="card"><div class="stepno">2 / 3 단계</div><h2>가족 코드 입력</h2>
+      <p class="t2" style="margin-top:0">먼저 설치한 기기의 ‘⚙ 설정’에 있는 12자리 코드를 입력하세요.</p>
+      <input type="text" data-draft="setup:fam" value="${esc(S.drafts["setup:fam"]||"")}" placeholder="ABCD-EFGH-JKLM" style="width:100%;font-size:22px;letter-spacing:2px;text-transform:uppercase">
+      ${err}<div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" data-act="setupStep" data-step="family">뒤로</button><button class="btn primary" data-act="setupJoinFam" ${busy}>${st.busy?"확인 중…":"연결하기"}</button></div></div>`;
+  } else if(st.step==="famCreated"){
+    h += `<div class="card"><div class="stepno">2 / 3 단계</div><h2>가족 코드가 만들어졌어요</h2>
+      <p class="t2" style="margin-top:0">다른 기기(보호자 폰 또는 아이 탭)에 앱을 설치할 때 이 코드를 입력하세요. 나중에 ‘⚙ 설정’에서도 볼 수 있어요.</p>
+      <div class="famcode">${esc(st.fam)}</div>
+      <div style="text-align:right"><button class="btn primary" data-act="setupStep" data-step="role">다음</button></div></div>`;
+  } else if(st.step==="role"){
+    h += `<div class="card"><div class="stepno">3 / 3 단계</div><h2>이 기기는 누가 쓰나요?</h2>
+      <div class="big-choice"><button data-act="setupRole" data-role="kid"><span>🙋</span>아이 탭<small>할 일 체크 · 독서 기록</small></button>
+      <button data-act="setupRole" data-role="parent"><span>👨‍👩‍👦</span>보호자 폰<small>현황 · 통계 · 일정 관리</small></button></div></div>`;
+  } else if(st.step==="kidPin"){
+    h += `<div class="card"><h2>보호자 PIN 정하기</h2><p class="t2" style="margin-top:0">아이 탭에서 보호자 화면·통계·설정을 열 때 쓰는 숫자 4자리예요.</p>
+      <input type="password" inputmode="numeric" maxlength="4" data-draft="setup:pin" placeholder="숫자 4자리" style="font-size:24px;width:180px;letter-spacing:6px">
+      ${err}<div style="margin-top:10px;text-align:right"><button class="btn primary" data-act="setupKidPin">PIN 저장</button></div></div>`;
+  }
+  return h + `</div>`;
+}
+/* ---------- child name (stored in Firebase config/settings) ---------- */
+function kidName(){ return String((S.settings && S.settings.childName) || "").trim(); }
+function KN(){ return kidName() || "아이"; }
+function KNga(){ return kidName() ? kidName()+"가" : "아이가"; }
+function saveKidName(n){
+  if(!S.db){ toast("저장 기능이 연결되지 않았어요."); return; }
+  S.settings = Object.assign({}, S.settings, {childName: String(n||"").trim().slice(0,12)}); render();
+  enqueue("config/settings", ()=> S.db.doc("config/settings").set(JSON.parse(JSON.stringify(S.settings))));
+  toast("이름을 저장했어요");
+}
+
+/* ---------- app update (GitHub releases) ---------- */
+window.onUpdateInfo = function(info){ try{ S.update = typeof info==="string" ? JSON.parse(info) : info; }catch(e){ S.update = {error:"parse"}; } S.updateChecking = false; render(); };
+window.onUpdateProgress = function(st){
+  const m = {downloading:"새 버전을 내려받는 중이에요… 끝나면 설치 화면이 떠요", need_permission:"‘이 출처 허용’을 켠 뒤 돌아와서 다시 ‘받기’를 눌러 주세요", installing:"설치 화면을 열었어요. ‘업데이트’를 눌러 주세요", error:"내려받지 못했어요. ‘브라우저로 받기’를 눌러 주세요"};
+  toast(m[st] || st); if(st==="error"){ S.updateFailed = true; render(); }
+};
+function checkUpdate(){ if(!HasAndroid || !window.Android.checkUpdate) return; S.updateChecking = true; safe(()=>Android.checkUpdate()); }
+function updatePanel(){
+  if(!HasAndroid) return `<p class="t2">앱에서만 쓸 수 있어요.</p>`;
+  const u = S.update || {}; const cur = safe(()=>Android.appVersion(), "");
+  let st = S.updateChecking ? "확인 중…" : u.error==="not_public" ? "저장소가 비공개라 확인할 수 없어요" : u.error ? "확인하지 못했어요 (인터넷 확인)" : u.newer ? `<b>새 버전 ${esc(u.name||"")} 있어요</b>` : u.latest ? "최신 버전이에요" : "";
+  return `<div class="okline"><div class="lbl">지금 버전 <b>${esc(cur)}</b><br><span class="t2" style="font-size:13px">${st}</span></div>
+    <button class="btn sm" data-act="upCheck">업데이트 확인</button>
+    ${u.newer?`<button class="btn primary sm" data-act="upGet">받기</button>`:""}
+    ${u.newer && S.updateFailed?`<button class="btn sm" data-act="upWeb">브라우저로 받기</button>`:""}</div>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0;line-height:1.6">‘받기’를 누르면 새 APK를 내려받아 설치 화면을 열어요. 처음 한 번은 ‘이 출처 허용’을 켜 달라고 나와요. 기존 기록과 설정은 그대로 남아요.</p>`;
+}
+function updateBanner(){
+  const u = S.update; if(!u || !u.newer || S.setup) return "";
+  return `<div class="notice">새 버전 <b>${esc(u.name||"")}</b>이 나왔어요. <button class="btn primary sm" data-act="upGet">받기</button></div>`;
+}
+
+/* ---------- schedule notifications ---------- */
+function notifySettings(){ const d = {lead: S.role==="parent" ? "-1" : "0", end:"1", routine:"0"}; return Object.assign(d, HasAndroid ? safe(()=>JSON.parse(Android.getNotifySettings()||"{}"), {}) : {}); }
+function notifyPanel(){
+  if(!HasAndroid) return `<p class="t2">알림은 안드로이드 앱에서만 쓸 수 있어요.</p>`;
+  const st = notifySettings(); const on = safe(()=>Android.notificationsEnabled(), true);
+  const next = safe(()=>Android.nextNotifyAt(), 0);
+  const seg = (k, opts) => `<div class="seg-btns">${opts.map(([v,l])=>`<button class="${st[k]===v?"on":""}" data-act="ntStyle" data-k="${k}" data-v="${v}">${l}</button>`).join("")}</div>`;
+  const nd = next ? new Date(next) : null;
+  return `${on?"":`<div class="notice err">휴대폰 설정에서 이 앱의 알림이 꺼져 있어요. <button class="btn sm" data-act="ntOpen">알림 설정 열기</button></div>`}
+    <div class="okline"><div class="lbl"><b>시작 알림</b><br><span class="t2" style="font-size:13px">${S.role==="parent"?`${KN()} 일정이 시작될 때`:"할 일을 시작할 시간에"}</span></div>${seg("lead",[["-1","끄기"],["0","정각"],["5","5분 전"],["10","10분 전"]])}</div>
+    <div class="okline"><div class="lbl"><b>끝날 때 체크 알림</b><br><span class="t2" style="font-size:13px">${S.role==="parent"?`끝난 일정을 ${KNga()} 아직 체크 안 했으면`:"끝날 시간에 아직 체크 안 했으면"}</span></div>${seg("end",[["0","끄기"],["1","켜기"]])}</div>
+    <div class="okline"><div class="lbl">생활 일정(학교·저녁·놀기)도 시작 알림</div>${seg("routine",[["0","끄기"],["1","켜기"]])}</div>
+    <div class="okline"><div class="lbl">다음 알림 <span class="t2" style="font-size:13px">${nd?`${md(ymd(nd))} ${pad2(nd.getHours())}:${pad2(nd.getMinutes())}`:"없음"}</span></div><button class="btn sm" data-act="ntTest">테스트 알림</button></div>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0;line-height:1.6">‘언제든’ 일정(세계사 책읽기 등)은 시간이 없어서 알림이 없어요. 알림 설정은 기기마다 따로예요. 알림이 늦게 오면 휴대폰 설정에서 이 앱을 배터리 절전 예외로 지정해 주세요.</p>`;
+}
+
+/* ---------- home-screen widget ---------- */
+function widgetStyle(){ const d = {mode:"list", theme:"light", hide:"0"}; const j = HasAndroid ? safe(()=>JSON.parse(Android.getWidgetStyle()||"{}"), {}) : {}; return Object.assign(d, j||{}); }
+function saveWidgetStyle(st){ if(!HasAndroid) return; safe(()=>Android.setWidgetStyle(st.mode, st.theme, st.hide==="1")); toast("위젯에 적용했어요"); render(); }
+let widgetTimer = null;
+function widgetPayload(){ const t = today(); const d = S.days[t] || {}; return JSON.stringify({sched: schedItems(), checksDate: t, checks: d.checks || {}}); }
+function pushWidgetNow(){ if(!HasAndroid || !S.scheduleLoaded) return; safe(()=>Android.pushWidgetData(widgetPayload())); }
+function pushWidget(){ clearTimeout(widgetTimer); widgetTimer = setTimeout(pushWidgetNow, 800); }
+function widgetPanel(){
+  if(!HasAndroid) return `<p class="t2">위젯은 안드로이드 앱에서만 쓸 수 있어요.</p>`;
+  const n = safe(()=>Android.widgetCount(), 0), canPin = safe(()=>Android.canPinWidget(), false), st = widgetStyle();
+  const seg = (k, opts) => `<div class="seg-btns">${opts.map(([v,l])=>`<button class="${st[k]===v?"on":""}" data-act="wgStyle" data-k="${k}" data-v="${v}">${l}</button>`).join("")}</div>`;
+  return `<div class="okline"><div class="lbl"><b>홈 화면 위젯</b><br><span class="t2" style="font-size:13px">${n?`지금 ${n}개 놓여 있어요.`:"아직 홈 화면에 위젯이 없어요."}</span></div>
+      ${canPin?`<button class="btn primary sm" data-act="wgPin">홈 화면에 추가</button>`:""}</div>
+    <div class="okline"><div class="lbl">표시 방식</div>${seg("mode",[["list","목록형"],["summary","요약형"]])}</div>
+    <div class="okline"><div class="lbl">배경</div>${seg("theme",[["light","흰색"],["clear","반투명"],["dark","어둡게"]])}</div>
+    <div class="okline"><div class="lbl">완료한 일 목록에서 숨기기</div>${seg("hide",[["0","보이기"],["1","숨기기"]])}</div>
+    <div class="okline"><div class="lbl">지금 새로고침</div><button class="btn sm" data-act="wgRefresh">⟳ 새로고침</button></div>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0;line-height:1.6">
+      <b>직접 추가하는 방법</b>: 홈 화면 빈 곳을 길게 누르기 → <b>위젯</b> → <b>일정 체크</b>를 길게 눌러 원하는 곳에 놓기 → 위젯 설정 화면에서 고르고 <b>추가</b>.<br>
+      위젯은 앱이 열려 있으면 바로 바뀌고, 앱을 닫아 두면 약 15~30분마다 스스로 새로 받아요. 위젯의 ⟳ 를 누르면 바로 새로고침돼요.
+      ${S.role==="parent"?"<br>자동 새로고침이 늦으면 휴대폰 설정에서 이 앱을 배터리 절전 예외로 지정해 주세요.":""}</p>`;
+}
+function viewSettings(){
+  const fam = Pref.get("fam"); const ver = HasAndroid ? safe(()=>Android.appVersion(), "") : "웹";
+  let h = `<div class="card"><h2>이 기기</h2>
+    <div class="okline"><div class="lbl">역할</div><b>${S.role==="parent"?"👨‍👩‍👦 보호자 폰":"🙋 아이 탭"}</b> <button class="btn sm" data-act="changeRole">바꾸기</button></div>
+    <div class="okline"><div class="lbl">앱 버전</div><span class="t2">${esc(ver)}</span></div></div>`;
+  h += `<div class="card"><h2>가족 코드</h2><p class="t2" style="margin-top:0">다른 기기에 앱을 설치할 때 이 코드를 입력하세요. 코드를 아는 사람만 기록을 볼 수 있으니 다른 사람에게 알려 주지 마세요.</p>
+    <div class="famcode">${esc(fam)}</div><div style="text-align:right"><button class="btn sm" data-act="copyFam">복사</button></div></div>`;
+  h += `<div class="card"><h2>⬆ 앱 업데이트</h2>${updatePanel()}</div>`;
+  h += `<div class="card"><h2>🔔 일정 알림</h2>${notifyPanel()}</div>`;
+  h += `<div class="card"><h2>🧩 위젯 설정</h2>${widgetPanel()}</div>`;
+  h += `<div class="card"><h2>연결 초기화</h2><p class="t2" style="margin-top:0">이 기기의 Firebase·가족 연결을 지우고 처음 설정 화면으로 돌아가요. 기록은 지워지지 않아요.</p>
+    <button class="btn danger" data-act="resetAll">${S.delConfirm==="reset"?"정말 초기화할까요? 한 번 더 누르세요":"초기화"}</button></div>`;
+  return h;
+}
+window.onAndroidBack = function(){
+  if(S.setup) return "";
+  const home = S.role==="parent" ? "parent" : "today";
+  if(S.view!==home){ location.hash = "#"+home; return ""; }
+  return "exit";
+};
+window.onAndroidResume = function(){ tick(); if(!pendingRender) render(); pushWidget(); };
+
+/* routing */
+function route(){
+  const h = (location.hash||"").replace("#","");
+  S.view = VIEWS.some(v=>v.id===h) ? h : (S.role==="parent" ? "parent" : "today");
+  try{ if(sessionStorage.getItem("hs_unlocked")==="1") S.unlocked = true; }catch(_){}
+  if(S.role==="parent") S.unlocked = true;
+  S.pinEntry = ""; render();
+}
+window.addEventListener("hashchange", route);
+
+/* day rollover + clock */
+let lastDay = today();
+setInterval(()=>{ tick(); const t = today(); if(t!==lastDay){ if(S.kidDate===lastDay) S.kidDate = t; if(S.week===monday(lastDay)) S.week = monday(t); lastDay = t; } if(!pendingRender) render(); }, 30000);
+tick(); boot();
+})();
+</script>
+</body>
+</html>

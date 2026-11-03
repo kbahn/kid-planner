@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 가족 코드(예: ABCD-EFGH-JKLM)를 아는 앱만 그 가족의 기록을 읽고 쓸 수 있어요.
+    match /families/{fam}/{document=**} {
+      allow read, write: if request.auth != null
+                         && fam.matches('^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$');
+    }
+    // 그 밖의 경로는 모두 막아요.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

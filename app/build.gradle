@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+}
+
+// 빌드 번호 = GitHub Actions 실행 번호. versionCode는 이전 저장소 빌드(1~8)보다 항상 크게 100을 더함.
+def runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+def codeNumber = runNumber + 100
+
+android {
+    namespace 'kr.kidplanner.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "kr.kidplanner.app"
+        minSdk 26
+        targetSdk 34
+        versionCode codeNumber
+        versionName "1.1." + runNumber
+    }
+
+    // 서명 키는 저장소에 없고 GitHub Secrets → 환경변수로 받는다 (워크플로 참고).
+    def ksPath = System.getenv("KEYSTORE_FILE")
+    signingConfigs {
+        shared {
+            if (ksPath) {
+                storeFile file(ksPath)
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS") ?: "planner"
+                keyPassword System.getenv("KEY_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig ksPath ? signingConfigs.shared : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+}

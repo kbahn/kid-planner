@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">일정 체크</string>
+    <string name="widget_name">일정 체크</string>
+    <string name="widget_desc">오늘 할 일 진행률과 체크 상태</string>
+    <string name="widget_config_title">위젯 설정</string>
+</resources>
