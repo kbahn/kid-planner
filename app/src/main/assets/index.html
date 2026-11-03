@@ -324,8 +324,10 @@ function dayStats(date){
   const items = checkable(planFor(date));
   let r = {total:0, done:0, partial:0, miss:0, none:0, future:0, pts:0};
   items.forEach(i=>{ const s = statusOf(date,i); r[s]++; if(s!=="future"){ r.total++; r.pts += score(s);} });
-  r.rate = r.total ? r.pts/r.total : null;
   r.all = items.length;
+  // 오늘은 '오늘 해야 할 일 전체'가 기준 (아직 시간이 안 된 일도 분모에 포함). 지난 날은 원래대로.
+  if(date === today()) r.rate = r.all ? (r.done + r.partial*0.5)/r.all : null;
+  else r.rate = r.total ? r.pts/r.total : null;
   return r;
 }
 
@@ -333,15 +335,16 @@ function rangeStats(from, to){
   const s0 = startDate(); if(from < s0) from = s0;
   const t = today(); if(to > t) to = t;
   const dates = datesBetween(from, to);
-  const agg = {total:0,done:0,partial:0,miss:0,none:0,pts:0, onTime:0, checked:0};
+  const agg = {total:0,done:0,partial:0,miss:0,none:0,future:0,pts:0, onTime:0, checked:0};
   const byTitle = {}, byWd = {}, reasons = {}, daily = [];
   dates.forEach(date=>{
     const ds = dayStats(date); daily.push({date, rate:ds.rate, ds});
     checkable(planFor(date)).forEach(i=>{
-      const st = statusOf(date,i); if(st==="future") return;
+      // 오늘 아직 시간이 안 된 일도 '오늘까지 해야 하는 일'로 분모에 넣는다 (0점)
+      const st = statusOf(date,i); if(st==="future" && date!==t) return;
       agg.total++; agg[st]++; agg.pts += score(st);
       const key = i.title;
-      (byTitle[key] = byTitle[key] || {n:0,pts:0,done:0,partial:0,miss:0,none:0,cat:i.cat}); byTitle[key].n++; byTitle[key].pts += score(st); byTitle[key][st]++;
+      (byTitle[key] = byTitle[key] || {n:0,pts:0,done:0,partial:0,miss:0,none:0,future:0,cat:i.cat}); byTitle[key].n++; byTitle[key].pts += score(st); byTitle[key][st]++;
       const w = wdIdx(date); (byWd[w] = byWd[w] || {n:0,pts:0}); byWd[w].n++; byWd[w].pts += score(st);
       const c = S.days[date] && S.days[date].checks && S.days[date].checks[i.id];
       if(c && c.s){
@@ -681,8 +684,8 @@ function viewParent(){
 
   let h = `<div class="kpis">
     <div class="kpi"><div class="lbl">오늘 완료</div><div class="val">${ds.done}<span class="muted" style="font-size:18px"> / ${ds.all}</span></div><div class="sub">🔶 일부 ${ds.partial} · ❌ 못함 ${ds.miss}</div></div>
-    <div class="kpi"><div class="lbl">오늘 달성률 (지난 일정 기준)</div><div class="val">${pct(ds.rate)}</div><div class="sub">완료 1점 · 일부 0.5점</div></div>
-    <div class="kpi"><div class="lbl">이번 주 달성률</div><div class="val">${pct(wk.agg.rate)}</div><div class="sub">연속 80%↑ ${wk.streak}일</div></div>
+    <div class="kpi"><div class="lbl">오늘 달성률</div><div class="val">${pct(ds.rate)}</div><div class="sub">오늘 할 일 ${ds.all}개 기준 · 완료 1점 · 일부 0.5점</div></div>
+    <div class="kpi"><div class="lbl">이번 주 달성률</div><div class="val">${pct(wk.agg.rate)}</div><div class="sub">월~오늘 할 일 ${wk.agg.total}개 기준 · 연속 80%↑ ${wk.streak}일</div></div>
     <div class="kpi"><div class="lbl">마지막 체크</div><div class="val" style="font-size:22px">${last?esc(hm(last.at)):"–"}</div><div class="sub">${last?esc((last.date===t?"오늘":md(last.date))+" · "+last.title):"아직 기록 없음"}</div></div>
   </div>`;
   h += `<div class="row"><div class="card"><h2>지금 할 일</h2>
@@ -707,10 +710,10 @@ function viewParent(){
 
 /* ===================== view: stats ===================== */
 function segBar(a){
-  const tot = a.done+a.partial+a.miss+a.none; if(!tot) return `<p class="muted">아직 집계할 기록이 없어요.</p>`;
+  const tot = a.done+a.partial+a.miss+a.none+(a.future||0); if(!tot) return `<p class="muted">아직 집계할 기록이 없어요.</p>`;
   const part = (k,col,lab)=> a[k] ? `<div style="width:${a[k]/tot*100}%;background:${col}" data-tip="${lab} ${a[k]}개 (${Math.round(a[k]/tot*100)}%)"></div>` : "";
-  return `<div class="seg">${part("done","var(--done)","✅ 완료")}${part("partial","var(--partial)","🔶 일부")}${part("miss","var(--miss)","❌ 못함")}${part("none","var(--none)","⬜ 미체크")}</div>
-  <div class="legend" style="margin-top:8px"><span><i class="sw" style="background:var(--done)"></i>✅ 완료 ${a.done}</span><span><i class="sw" style="background:var(--partial)"></i>🔶 일부 ${a.partial}</span><span><i class="sw" style="background:var(--miss)"></i>❌ 못함 ${a.miss}</span><span><i class="sw" style="background:var(--none)"></i>⬜ 미체크 ${a.none}</span></div>`;
+  return `<div class="seg">${part("done","var(--done)","✅ 완료")}${part("partial","var(--partial)","🔶 일부")}${part("miss","var(--miss)","❌ 못함")}${part("none","var(--none)","⬜ 미체크")}${part("future","var(--line)","⏳ 오늘 남은 일")}</div>
+  <div class="legend" style="margin-top:8px"><span><i class="sw" style="background:var(--done)"></i>✅ 완료 ${a.done}</span><span><i class="sw" style="background:var(--partial)"></i>🔶 일부 ${a.partial}</span><span><i class="sw" style="background:var(--miss)"></i>❌ 못함 ${a.miss}</span><span><i class="sw" style="background:var(--none)"></i>⬜ 미체크 ${a.none}</span>${a.future?`<span><i class="sw" style="background:var(--line)"></i>⏳ 오늘 남은 일 ${a.future}</span>`:""}</div>`;
 }
 function hbars(rows){
   if(!rows.length) return `<p class="muted">아직 기록이 없어요.</p>`;
@@ -725,7 +728,7 @@ function viewStats(){
     </div><span class="t2">${md(R.from)} ~ ${md(R.to)} · ${R.dates.length}일 · 기록 시작 ${md(startDate())}</span></div>`;
   if(!R.dates.length) return h + `<div class="card muted">기록 시작일 이후 데이터가 아직 없어요.</div>`;
   h += `<div class="kpis">
-    <div class="kpi"><div class="lbl">달성률</div><div class="val">${pct(a.rate)}</div><div class="sub">완료 1 · 일부 0.5 · 못함/미체크 0</div></div>
+    <div class="kpi"><div class="lbl">달성률</div><div class="val">${pct(a.rate)}</div><div class="sub">오늘까지 할 일 ${a.total}개 기준 · 완료 1 · 일부 0.5</div></div>
     <div class="kpi"><div class="lbl">체크한 비율</div><div class="val">${a.total?pct(a.checked/a.total):"–"}</div><div class="sub">${a.checked} / ${a.total}개 스스로 체크</div></div>
     <div class="kpi"><div class="lbl">제때 체크</div><div class="val">${a.checked?pct(a.onTime/a.checked):"–"}</div><div class="sub">끝난 시각 +1시간 안에 체크</div></div>
     <div class="kpi"><div class="lbl">연속 달성(80%↑)</div><div class="val">${R.streak}<span style="font-size:16px">일</span></div><div class="sub">끝난 날 기준</div></div></div>`;
