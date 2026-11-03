@@ -180,6 +180,10 @@ table.list td.num{text-align:right;font-variant-numeric:tabular-nums}
 .err{color:var(--miss);font-size:14px;margin-top:8px}
 .okline{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .okline .lbl{flex:1;min-width:180px}
+@keyframes slideL{from{transform:translateX(36px);opacity:.4}to{transform:none;opacity:1}}
+@keyframes slideR{from{transform:translateX(-36px);opacity:.4}to{transform:none;opacity:1}}
+main.slide-l{animation:slideL .18s ease-out} main.slide-r{animation:slideR .18s ease-out}
+#swipehint{position:fixed;top:50%;width:34px;height:34px;margin-top:-17px;border-radius:50%;background:var(--text);color:#fff;display:none;align-items:center;justify-content:center;font-size:18px;opacity:.75;z-index:40;pointer-events:none}
 /* edit */
 .editform{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end}
 .editform label{font-size:13px;color:var(--text2);font-weight:700;display:flex;flex-direction:column;gap:4px}
@@ -1273,6 +1277,50 @@ window.onAndroidBack = function(){
   return "exit";
 };
 window.onAndroidResume = function(){ tick(); if(!pendingRender) render(); pushWidget(); };
+
+/* ---------- swipe left/right to change menu ---------- */
+(function(){
+  let sx=0, sy=0, st=0, track=false, hint=null;
+  function blocked(el){
+    for(let e=el; e && e!==document.body; e=e.parentElement){
+      if(!e.tagName) continue;
+      const tg=e.tagName;
+      if(tg==="INPUT"||tg==="TEXTAREA"||tg==="SELECT"||e.isContentEditable) return true;
+      if(e.hasAttribute && e.hasAttribute("data-noswipe")) return true;
+      const cs=getComputedStyle(e);
+      if((cs.overflowX==="auto"||cs.overflowX==="scroll") && e.scrollWidth>e.clientWidth+2) return true;
+    }
+    return false;
+  }
+  function order(){ return VIEWS.map(v=>v.id); }
+  function showHint(dir, amt){
+    if(!hint){ hint=document.createElement("div"); hint.id="swipehint"; document.body.appendChild(hint); }
+    hint.textContent = dir<0 ? "›" : "‹";
+    hint.style.display="flex"; hint.style.left = dir<0 ? "" : "8px"; hint.style.right = dir<0 ? "8px" : "";
+    hint.style.opacity = String(Math.min(.8, amt/120));
+  }
+  function hideHint(){ if(hint) hint.style.display="none"; }
+  document.addEventListener("touchstart", e=>{
+    if(e.touches.length!==1 || S.setup || blocked(e.target)){ track=false; return; }
+    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; st=Date.now(); track=true;
+  }, {passive:true});
+  document.addEventListener("touchmove", e=>{
+    if(!track) return; const t=e.touches[0]; const dx=t.clientX-sx, dy=t.clientY-sy;
+    if(Math.abs(dy)>Math.abs(dx) && Math.abs(dy)>12){ track=false; hideHint(); return; }
+    if(Math.abs(dx)>30){ const ids=order(), i=ids.indexOf(S.view), j=i+(dx<0?1:-1); if(j>=0 && j<ids.length) showHint(dx<0?-1:1, Math.abs(dx)); }
+  }, {passive:true});
+  document.addEventListener("touchend", e=>{
+    hideHint(); if(!track) return; track=false;
+    const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy, dt=Date.now()-st;
+    if(Math.abs(dx)<70 || Math.abs(dx)<Math.abs(dy)*1.8 || dt>700) return;
+    const ids=order(), i=ids.indexOf(S.view), j=i+(dx<0?1:-1);
+    if(i<0 || j<0 || j>=ids.length) return;
+    const main=document.getElementById("main");
+    main.classList.remove("slide-l","slide-r"); void main.offsetWidth; main.classList.add(dx<0?"slide-l":"slide-r");
+    location.hash = "#"+ids[j]; window.scrollTo(0,0);
+  }, {passive:true});
+  document.addEventListener("touchcancel", ()=>{ track=false; hideHint(); }, {passive:true});
+})();
 
 /* routing */
 function route(){
