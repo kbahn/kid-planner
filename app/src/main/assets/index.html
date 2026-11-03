@@ -913,8 +913,10 @@ document.addEventListener("click", e=>{
     case "setupKidPin": setupKidPin(); break;
     case "setupDone": finishSetup(); break;
     case "upCheck": checkUpdate(); render(); break;
-    case "upGet": if(HasAndroid && S.update && S.update.url){ S.updateFailed = false; safe(()=>Android.downloadUpdate(S.update.url, String(S.update.latest||""))); } break;
-    case "upWeb": if(HasAndroid && S.update) safe(()=>Android.openUrl(S.update.page || S.update.url)); break;
+    case "upGet": if(HasAndroid && S.update && S.update.url){ S.updateFailed = false; S.updState = "준비 중…"; render();
+        if(!window.Android.downloadUpdate){ window.onUpdateProgress("error:이 버전은 앱 안 받기를 지원하지 않아요"); break; }
+        try{ Android.downloadUpdate(S.update.url, String(S.update.latest||"")); }catch(e){ window.onUpdateProgress("error:"+e.message); } } break;
+    case "upWeb": if(HasAndroid && S.update) safe(()=>Android.openUrl(S.update.url || S.update.page)); break;
     case "saveKidName": { const v = S.drafts["kidname"] != null ? S.drafts["kidname"] : kidName(); delete S.drafts["kidname"]; saveKidName(v); break; }
     case "ntStyle": { const st = notifySettings(); st[b.dataset.k] = b.dataset.v; if(HasAndroid) safe(()=>Android.setNotifySettings(st.lead, st.end, st.routine)); toast("알림 설정을 바꿨어요"); setTimeout(render, 200); break; }
     case "ntTest": if(HasAndroid) safe(()=>Android.testNotify()); break;
@@ -1184,9 +1186,17 @@ function saveKidName(n){
 
 /* ---------- app update (GitHub releases) ---------- */
 window.onUpdateInfo = function(info){ try{ S.update = typeof info==="string" ? JSON.parse(info) : info; }catch(e){ S.update = {error:"parse"}; } S.updateChecking = false; render(); };
+let updTimer = null;
 window.onUpdateProgress = function(st){
-  const m = {downloading:"새 버전을 내려받는 중이에요… 끝나면 설치 화면이 떠요", need_permission:"‘이 출처 허용’을 켠 뒤 돌아와서 다시 ‘받기’를 눌러 주세요", installing:"설치 화면을 열었어요. ‘업데이트’를 눌러 주세요", error:"내려받지 못했어요. ‘브라우저로 받기’를 눌러 주세요"};
-  toast(m[st] || st); if(st==="error"){ S.updateFailed = true; render(); }
+  st = String(st||""); clearTimeout(updTimer);
+  if(st==="start") S.updState = "준비 중…";
+  else if(st==="need_permission") S.updState = "‘이 출처 허용’을 켜고 뒤로 돌아오면 자동으로 이어서 받아요";
+  else if(st.startsWith("progress:")) S.updState = "내려받는 중 " + st.slice(9) + "%";
+  else if(st==="installing") S.updState = "설치 화면을 열었어요. ‘설치’ 또는 ‘업데이트’를 눌러 주세요";
+  else if(st.startsWith("error")){ S.updState = "받지 못했어요" + (st.length>6 ? " ("+st.slice(6)+")" : "") + ". ‘브라우저로 받기’를 눌러 주세요"; S.updateFailed = true; }
+  toast(S.updState);
+  if(st==="start"){ updTimer = setTimeout(()=>{ if(S.updState==="준비 중…"){ S.updState = "반응이 없어요. ‘브라우저로 받기’를 눌러 주세요"; S.updateFailed = true; render(); } }, 8000); }
+  render();
 };
 function checkUpdate(){ if(!HasAndroid || !window.Android.checkUpdate) return; S.updateChecking = true; safe(()=>Android.checkUpdate()); }
 function updatePanel(){
@@ -1195,13 +1205,13 @@ function updatePanel(){
   let st = S.updateChecking ? "확인 중…" : u.error==="not_public" ? "저장소가 비공개라 확인할 수 없어요" : u.error ? "확인하지 못했어요 (인터넷 확인)" : u.newer ? `<b>새 버전 ${esc(u.name||"")} 있어요</b>` : u.latest ? "최신 버전이에요" : "";
   return `<div class="okline"><div class="lbl">지금 버전 <b>${esc(cur)}</b><br><span class="t2" style="font-size:13px">${st}</span></div>
     <button class="btn sm" data-act="upCheck">업데이트 확인</button>
-    ${u.newer?`<button class="btn primary sm" data-act="upGet">받기</button>`:""}
-    ${u.newer && S.updateFailed?`<button class="btn sm" data-act="upWeb">브라우저로 받기</button>`:""}</div>
-    <p class="muted" style="font-size:12.5px;margin:10px 0 0;line-height:1.6">‘받기’를 누르면 새 APK를 내려받아 설치 화면을 열어요. 처음 한 번은 ‘이 출처 허용’을 켜 달라고 나와요. 기존 기록과 설정은 그대로 남아요.</p>`;
+    ${u.newer?`<button class="btn primary sm" data-act="upGet">받기</button> <button class="btn sm" data-act="upWeb">브라우저로 받기</button>`:""}</div>
+    ${S.updState?`<div class="notice${S.updateFailed?" err":""}" style="margin:10px 0 0">${esc(S.updState)}</div>`:""}
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0;line-height:1.6">‘받기’를 누르면 새 APK를 내려받아 설치 화면을 열어요. 처음 한 번은 ‘이 출처 허용’을 켜 달라고 나와요. 잘 안 되면 ‘브라우저로 받기’로 받은 뒤 알림창에서 눌러 설치하세요. 기존 기록과 설정은 그대로 남아요.</p>`;
 }
 function updateBanner(){
   const u = S.update; if(!u || !u.newer || S.setup) return "";
-  return `<div class="notice">새 버전 <b>${esc(u.name||"")}</b>이 나왔어요. <button class="btn primary sm" data-act="upGet">받기</button></div>`;
+  return `<div class="notice${S.updateFailed?" err":""}">새 버전 <b>${esc(u.name||"")}</b>이 나왔어요. <button class="btn primary sm" data-act="upGet">받기</button> <button class="btn sm" data-act="upWeb">브라우저로 받기</button>${S.updState?`<br><small>${esc(S.updState)}</small>`:""}</div>`;
 }
 
 /* ---------- schedule notifications ---------- */

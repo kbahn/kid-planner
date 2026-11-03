@@ -4,8 +4,6 @@ import android.app.Activity;
 import android.appwidget.AppWidgetManager;
 import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
-import android.content.BroadcastReceiver;
-import android.content.IntentFilter;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -41,7 +39,6 @@ public class MainActivity extends Activity {
     /** 새 버전을 확인할 GitHub 저장소 (공개 저장소여야 확인 가능). */
     static final String UPDATE_REPO = "kbahn/kid-planner";
     private long downloadId = -1;
-    private BroadcastReceiver downloadReceiver;
 
     private WebView webView;
     private SharedPreferences prefs;
@@ -120,6 +117,11 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         NotifyScheduler.reschedule(this);
+        if (pendingUrl != null && (Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls())) {
+            String u = pendingUrl, ver = pendingVersion;
+            pendingUrl = null;
+            downloadAndInstall(u, ver);
+        }
         if (webView != null) {
             webView.evaluateJavascript("window.onAndroidResume && window.onAndroidResume()", null);
         }
@@ -213,81 +215,93 @@ public class MainActivity extends Activity {
         }).start();
     }
 
+    private String pendingUrl = null, pendingVersion = null;
+    private final android.os.Handler pollHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+
     private void downloadAndInstall(String url, String version) {
-        if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
-            try {
+        try {
+            js("onUpdateProgress", "start");
+            if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                pendingUrl = url;
+                pendingVersion = version;
+                js("onUpdateProgress", "need_permission");
                 startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                         Uri.parse("package:" + getPackageName())));
-            } catch (Exception ignored) { }
-            js("onUpdateProgress", "need_permission");
-            return;
-        }
-        try {
-            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-            String name = "update-" + version + ".apk";
-            java.io.File dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-            if (dir != null) {
-                java.io.File old = new java.io.File(dir, name);
-                if (old.exists()) //noinspection ResultOfMethodCallIgnored
-                    old.delete();
+                return;
             }
+            pendingUrl = null;
+            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            final String name = "update-" + (version == null || version.isEmpty() ? "new" : version) + ".apk";
+            final java.io.File dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            if (dir == null) throw new IllegalStateException("저장 공간을 찾을 수 없어요");
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            final java.io.File out = new java.io.File(dir, name);
+            if (out.exists()) //noinspection ResultOfMethodCallIgnored
+                out.delete();
             DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
             r.setTitle(getString(R.string.app_name) + " 업데이트");
             r.setMimeType("application/vnd.android.package-archive");
             r.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, name);
-            r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
             downloadId = dm.enqueue(r);
-            registerDownloadReceiver();
-            js("onUpdateProgress", "downloading");
+            pollDownload(dm, downloadId, out, 0);
         } catch (Exception e) {
-            js("onUpdateProgress", "error");
+            js("onUpdateProgress", "error:" + e.getClass().getSimpleName() + " " + e.getMessage());
         }
     }
 
-    private void registerDownloadReceiver() {
-        if (downloadReceiver != null) return;
-        downloadReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context ctx, Intent intent) {
-                long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                if (id != downloadId) return;
-                DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-                boolean ok = false;
-                android.database.Cursor c = dm.query(new DownloadManager.Query().setFilterById(id));
-                if (c != null) {
-                    if (c.moveToFirst()) {
-                        int st = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
-                        ok = st == DownloadManager.STATUS_SUCCESSFUL;
-                    }
-                    c.close();
+    /** 0.7초마다 내려받기 상태를 확인해 화면에 알려 주고, 끝나면 설치 화면을 연다. */
+    private void pollDownload(DownloadManager dm, long id, java.io.File out, int tick) {
+        pollHandler.postDelayed(() -> {
+            if (id != downloadId) return;
+            int status = -1;
+            long got = 0, total = 0;
+            String reason = "";
+            android.database.Cursor c = null;
+            try {
+                c = dm.query(new DownloadManager.Query().setFilterById(id));
+                if (c != null && c.moveToFirst()) {
+                    status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                    got = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                    total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                    reason = String.valueOf(c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON)));
                 }
-                Uri apk = ok ? dm.getUriForDownloadedFile(id) : null;
-                if (apk == null) {
-                    js("onUpdateProgress", "error");
-                    return;
-                }
-                try {
-                    Intent install = new Intent(Intent.ACTION_VIEW);
-                    install.setDataAndType(apk, "application/vnd.android.package-archive");
-                    install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(install);
-                    js("onUpdateProgress", "installing");
-                } catch (Exception e) {
-                    js("onUpdateProgress", "error");
-                }
+            } catch (Exception e) {
+                js("onUpdateProgress", "error:" + e.getMessage());
+                return;
+            } finally {
+                if (c != null) c.close();
             }
-        };
-        IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(downloadReceiver, f, Context.RECEIVER_EXPORTED);
-        else registerReceiver(downloadReceiver, f);
+            if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                js("onUpdateProgress", "progress:100");
+                installApk(out);
+            } else if (status == DownloadManager.STATUS_FAILED || status == -1) {
+                js("onUpdateProgress", "error:내려받기 실패 (" + reason + ")");
+            } else {
+                if (total > 0) js("onUpdateProgress", "progress:" + (got * 100 / total));
+                if (tick < 600) pollDownload(dm, id, out, tick + 1);
+                else js("onUpdateProgress", "error:시간 초과");
+            }
+        }, 700);
+    }
+
+    private void installApk(java.io.File f) {
+        try {
+            Uri u = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".files", f);
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setDataAndType(u, "application/vnd.android.package-archive");
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+            js("onUpdateProgress", "installing");
+        } catch (Exception e) {
+            js("onUpdateProgress", "error:설치 화면을 열지 못했어요 " + e.getMessage());
+        }
     }
 
     @Override
     protected void onDestroy() {
-        if (downloadReceiver != null) {
-            try { unregisterReceiver(downloadReceiver); } catch (Exception ignored) { }
-            downloadReceiver = null;
-        }
+        pollHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
 
