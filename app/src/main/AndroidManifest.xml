@@ -56,6 +56,12 @@
                 android:resource="@xml/widget_today_info" />
         </receiver>
 
+        <!-- 위젯 목록(스크롤) 줄 만들기 -->
+        <service
+            android:name=".WidgetRowsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
         <!-- 위젯을 놓을 때 뜨는 위젯 설정 화면 -->
         <activity
             android:name=".WidgetConfigActivity"

@@ -104,295 +104,31 @@
             android:gravity="end" android:text="체크" android:textSize="11sp" android:textColor="#888780" />
     </LinearLayout>
 
-    <LinearLayout
+    <FrameLayout
         android:id="@+id/w_list"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="vertical">
-        <LinearLayout
-            android:id="@+id/w_row1"
+        android:layout_marginTop="4dp">
+        <ListView
+            android:id="@+id/w_listview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@android:color/transparent"
+            android:dividerHeight="4dp"
+            android:scrollbars="none"
+            android:fadingEdgeLength="16dp"
+            android:requiresFadingEdge="vertical" />
+        <TextView
+            android:id="@+id/w_empty"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
             android:paddingStart="8dp"
-            android:paddingEnd="10dp"
-            android:paddingTop="5dp"
-            android:paddingBottom="5dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/w_row1_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginEnd="8dp"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-            <TextView
-                android:id="@+id/w_row1_time"
-                android:layout_width="50dp"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="13sp" />
-            <TextView
-                android:id="@+id/w_row1_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textSize="14sp" />
-            <TextView
-                android:id="@+id/w_row1_at"
-                android:layout_width="48dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:gravity="end"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="12sp" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/w_row2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="10dp"
-            android:paddingTop="5dp"
-            android:paddingBottom="5dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/w_row2_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginEnd="8dp"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-            <TextView
-                android:id="@+id/w_row2_time"
-                android:layout_width="50dp"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="13sp" />
-            <TextView
-                android:id="@+id/w_row2_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textSize="14sp" />
-            <TextView
-                android:id="@+id/w_row2_at"
-                android:layout_width="48dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:gravity="end"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="12sp" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/w_row3"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="10dp"
-            android:paddingTop="5dp"
-            android:paddingBottom="5dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/w_row3_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginEnd="8dp"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-            <TextView
-                android:id="@+id/w_row3_time"
-                android:layout_width="50dp"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="13sp" />
-            <TextView
-                android:id="@+id/w_row3_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textSize="14sp" />
-            <TextView
-                android:id="@+id/w_row3_at"
-                android:layout_width="48dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:gravity="end"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="12sp" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/w_row4"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="10dp"
-            android:paddingTop="5dp"
-            android:paddingBottom="5dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/w_row4_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginEnd="8dp"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-            <TextView
-                android:id="@+id/w_row4_time"
-                android:layout_width="50dp"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="13sp" />
-            <TextView
-                android:id="@+id/w_row4_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textSize="14sp" />
-            <TextView
-                android:id="@+id/w_row4_at"
-                android:layout_width="48dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:gravity="end"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="12sp" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/w_row5"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="10dp"
-            android:paddingTop="5dp"
-            android:paddingBottom="5dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/w_row5_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginEnd="8dp"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-            <TextView
-                android:id="@+id/w_row5_time"
-                android:layout_width="50dp"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="13sp" />
-            <TextView
-                android:id="@+id/w_row5_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textSize="14sp" />
-            <TextView
-                android:id="@+id/w_row5_at"
-                android:layout_width="48dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:gravity="end"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="12sp" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/w_row6"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="10dp"
-            android:paddingTop="5dp"
-            android:paddingBottom="5dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/w_row6_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginEnd="8dp"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-            <TextView
-                android:id="@+id/w_row6_time"
-                android:layout_width="50dp"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="13sp" />
-            <TextView
-                android:id="@+id/w_row6_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textSize="14sp" />
-            <TextView
-                android:id="@+id/w_row6_at"
-                android:layout_width="48dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:gravity="end"
-                android:maxLines="1"
-                android:fontFeatureSettings="tnum"
-                android:textSize="12sp" />
-        </LinearLayout>
-    </LinearLayout>
+            android:paddingTop="8dp"
+            android:text="오늘은 체크할 일이 없어요"
+            android:textSize="14sp"
+            android:textColor="#888780" />
+    </FrameLayout>
 
     <!-- 꼬리: 업데이트 시각 · 새로고침 -->
     <LinearLayout
