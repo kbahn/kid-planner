@@ -1034,7 +1034,7 @@ const AppDB = {
   async start(cfg){
     const key = JSON.stringify(cfg);
     if(this.fs && this.key===key) return this.fs;
-    if(typeof firebase==="undefined") throw new Error("Firebase 라이브러리를 불러오지 못했어요");
+    if(typeof firebase==="undefined"){ const m = (navigator.userAgent||"").match(/Chrome\/(\d+)/); throw new Error("Firebase 라이브러리를 불러오지 못했어요. 이 기기의 웹 엔진" + (m?` (Chrome ${m[1]})`:"") + "이 너무 오래됐을 수 있어요. Play 스토어에서 ‘Android System WebView’와 ‘Chrome’을 업데이트한 뒤 다시 시도해 주세요."); }
     if(firebase.apps.length){ await Promise.all(firebase.apps.map(a=>a.delete())); this.fs = null; }
     firebase.initializeApp(cfg);
     const fs = firebase.firestore();
