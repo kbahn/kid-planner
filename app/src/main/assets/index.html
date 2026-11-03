@@ -289,7 +289,7 @@ async function connect(){
     if(HasAndroid && safe(()=>Android.getPref("childName"), "") !== kidName()){ safe(()=>Android.setPref("childName", kidName())); }
   }, onErr));
   S.unsubs.push(db.collection("days").onSnapshot(snap=>{
-    const m = {}; snap.docs.forEach(d=>{ m[d.id] = d.data(); }); S.days = m; mark("days", snap); render(); pushWidget();
+    const m = {}; snap.docs.forEach(d=>{ m[d.id] = d.data(); }); Object.keys(S.pendingDays||{}).forEach(k=>{ m[k] = S.pendingDays[k]; }); S.days = m; mark("days", snap); render(); pushWidget();
   }, onErr));
   S.unsubs.push(db.doc("reading/main").onSnapshot(snap=>{
     S.readingCfg = snap.exists ? (snap.data()||{}) : {}; render();
@@ -367,8 +367,11 @@ function saveDay(date, mutate){
   if(!S.db){ toast("저장 기능이 연결되지 않았어요."); return; }
   const doc = JSON.parse(JSON.stringify(dayDocForWrite(date)));
   mutate(doc); doc.updatedAt = new Date().toISOString();
-  S.days[date] = doc; render();
-  enqueue("days/"+date, ()=> S.db.doc("days/"+date).set(JSON.parse(JSON.stringify(S.days[date]))));
+  S.days[date] = doc; S.pendingDays = S.pendingDays || {}; S.pendingDays[date] = doc; render();
+  enqueue("days/"+date, ()=>{
+    const body = S.pendingDays[date]; if(!body) return;
+    return S.db.doc("days/"+date).set(JSON.parse(JSON.stringify(body))).then(()=>{ if(S.pendingDays[date]===body) delete S.pendingDays[date]; });
+  });
 }
 function setCheck(date, id, s){
   saveDay(date, doc=>{
@@ -393,6 +396,9 @@ function allLogs(){
 // 권별 진행: 가장 많이 읽은 쪽, 완독 여부 — 기록에서 계산
 function progress(sid){
   const p = {};
+  const ser = series().find(x=>x.id===sid); const pr = (ser && ser.prior) || {};
+  (pr.done||[]).forEach(v=>{ p[v] = {page:0, done:true, doneAt:null, pages:0, first:null, prior:true}; });
+  if(pr.vol && pr.page>0){ const v = p[pr.vol] || (p[pr.vol] = {page:0, done:false, doneAt:null, pages:0, first:null}); v.page = Math.max(v.page, +pr.page); v.prior = true; }
   allLogs().filter(l=>l.sid===sid).forEach(l=>{
     const v = p[l.vol] || (p[l.vol] = {page:0, done:false, doneAt:null, pages:0, first:l.date});
     v.page = Math.max(v.page, +l.to||0); v.pages += Math.max(0, +l.pages||0);
@@ -422,7 +428,7 @@ function readingForm(date, item){
     <div class="rrow" style="margin-top:8px">오늘 <input type="number" min="1" max="2000" inputmode="numeric" data-draft="${key}:to" value="${esc(S.drafts[key+":to"]||"")}" placeholder="${(p.page||0)+10}"> 쪽까지 읽었어요
       <label class="done-chk"><input type="checkbox" data-draft-chk="${key}:done" ${S.drafts[key+":done"]?"checked":""}> 이 권 끝까지 다 읽었어요!</label>
       <button class="btn primary" data-act="rdSave" data-id="${esc(item.id)}" data-sid="${esc(s.id)}" data-vol="${vol}">독서 기록 저장</button></div>
-    ${todayLogs.length?`<div class="rlog">${todayLogs.map(r=>{ const sx = ss.find(x=>x.id===r.sid); return `✔ ${esc(sx?sx.title:"책")} ${r.vol}권 ${r.from}~${r.to}쪽 (${r.pages}쪽)${r.done?" · 완독 🎉":""} <button class="btn sm" data-act="rdDel" data-date="${date}" data-ix="${r.ix}">지우기</button>`; }).join("<br>")}</div>`:""}
+    ${todayLogs.length?`<div class="rlog">${todayLogs.map(r=>{ const sx = ss.find(x=>x.id===r.sid); return `✔ ${esc(sx?sx.title:"책")} ${r.vol}권 ${r.from}~${r.to}쪽 (${r.pages}쪽)${r.done?" · 완독 🎉":""} <button class="btn sm" data-act="rdEdit" data-date="${date}" data-ix="${r.ix}">수정</button> <button class="btn sm" data-act="rdDel" data-date="${date}" data-ix="${r.ix}">지우기</button>`; }).join("<br>")}</div>`:""}
   </div>`;
 }
 function saveReading(date, itemId, sid, vol){
@@ -444,6 +450,31 @@ function readStats(from, to){
   const days = new Set(logs.filter(l=>l.pages>0||l.done).map(l=>l.date));
   return {pages: logs.reduce((a,l)=>a+(+l.pages||0),0), days: days.size, finished: logs.filter(l=>l.done).length, logs};
 }
+function volsText(arr){
+  const a = (arr||[]).map(Number).filter(n=>n>0).sort((x,y)=>x-y); const out = [];
+  for(let i=0;i<a.length;){ let j=i; while(j+1<a.length && a[j+1]===a[j]+1) j++; out.push(i===j?String(a[i]):a[i]+"-"+a[j]); i=j+1; }
+  return out.join(", ");
+}
+function parseVols(t, max){
+  const set = new Set();
+  String(t||"").split(/[,\s]+/).forEach(part=>{ if(!part) return; const m = part.match(/^(\d+)(?:[-~](\d+))?$/); if(!m) return;
+    let a = +m[1], b = m[2] ? +m[2] : a; if(a>b) [a,b] = [b,a]; for(let v=a; v<=b && v<=max; v++) if(v>=1) set.add(v); });
+  return [...set].sort((x,y)=>x-y);
+}
+function rdEditForm(ss, canParent){
+  const e = S.rdEdit; if(!e) return "";
+  const l = ((S.days[e.date]||{}).reading||[])[e.ix]; if(!l) return "";
+  const opt = ss.map(x=>`<option value="${esc(x.id)}" ${x.id===l.sid?"selected":""}>${esc(x.title)}</option>`).join("") || `<option value="${esc(l.sid)}">책</option>`;
+  return `<form id="rdEditForm" class="editform" style="margin-bottom:14px;padding:12px;border:2px solid var(--accent);border-radius:14px;background:var(--accent-soft)">
+    <div style="grid-column:1/-1;font-weight:700">독서 기록 수정</div>
+    <label>날짜<input type="date" name="date" value="${esc(e.date)}" max="${today()}" ${canParent?"":"disabled"}></label>
+    <label>책<select name="sid">${opt}</select></label>
+    <label>권<input type="text" inputmode="numeric" name="vol" value="${l.vol}"></label>
+    <label>시작 쪽<input type="text" inputmode="numeric" name="from" value="${l.from}"></label>
+    <label>끝 쪽<input type="text" inputmode="numeric" name="to" value="${l.to}"></label>
+    <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" name="done" ${l.done?"checked":""} style="width:20px;height:20px"> 이 권 완독</label>
+    <div style="display:flex;gap:6px"><button class="btn primary" type="submit">수정 저장</button><button class="btn" type="button" data-act="rdEditCancel">취소</button></div></form>`;
+}
 function viewBooks(){
   const ss = series(); const t = today(); const canParent = !needPin();
   const wk = readStats(monday(t), t); const all = readStats("0000-00-00", t);
@@ -459,7 +490,7 @@ function viewBooks(){
     for(let v=1; v<=s.volumes; v++){
       const x = p[v]; const st = x&&x.done ? "done" : x&&x.page>0 ? "reading" : "";
       const ratio = x&&x.done ? 1 : (x && s.pages ? Math.min(1, x.page/s.pages) : 0);
-      h += `<div class="vol ${st}" data-tip="${esc(`${s.title} ${v}권 · ${x&&x.done?`${md(x.doneAt)} 완독`:x&&x.page?`${x.page}쪽까지 읽음`:"아직 안 읽음"}`)}"><b>${v}권</b>${x&&x.done?"✅ 다 읽음":x&&x.page?`📖 ${x.page}쪽${s.pages?` (${Math.round(ratio*100)}%)`:""}`:'<span class="muted">안 읽음</span>'}
+      h += `<div class="vol ${st}" data-tip="${esc(`${s.title} ${v}권 · ${x&&x.done?(x.doneAt?`${md(x.doneAt)} 완독`:"앱 쓰기 전에 완독"):x&&x.page?`${x.page}쪽까지 읽음`:"아직 안 읽음"}`)}"><b>${v}권</b>${x&&x.done?"✅ 다 읽음":x&&x.page?`📖 ${x.page}쪽${s.pages?` (${Math.round(ratio*100)}%)`:""}`:'<span class="muted">안 읽음</span>'}
         ${s.pages||(x&&x.done)?`<div class="pb"><i style="width:${ratio*100}%"></i></div>`:""}</div>`;
     }
     h += `</div></div>`;
@@ -469,8 +500,8 @@ function viewBooks(){
   const mx = Math.max(10, ...d14.map(x=>x.n));
   h += `<div class="card"><h2>최근 2주 읽은 쪽수</h2><div class="vbars">${d14.map(x=>`<div class="b" data-tip="${md(x.d)} (${DAYS[wdIdx(x.d)]}) · ${x.n}쪽"><div class="f ${x.n?"":"zero"}" style="height:${x.n?Math.max(2,x.n/mx*100):1}%"></div></div>`).join("")}</div>
     <div class="vlabels">${d14.map(x=>`<span>${md(x.d).split("/")[1]}(${DAYS[wdIdx(x.d)]})</span>`).join("")}</div><p class="muted" style="font-size:12px;margin:6px 0 0">가장 높은 막대 ${mx}쪽 기준</p></div>`;
-  const logs = all.logs.slice().sort((a,b)=>(b.at||"").localeCompare(a.at||"")).slice(0,20);
-  h += `<div class="card"><h2>독서 기록</h2>${logs.length?`<table class="list"><thead><tr><th>날짜</th><th>책</th><th>쪽</th><th class="num">읽은 쪽수</th><th></th></tr></thead><tbody>${logs.map(l=>{ const s = ss.find(x=>x.id===l.sid); return `<tr><td class="t2">${md(l.date)} ${hm(l.at)}</td><td>${esc(s?s.title:"(삭제된 책)")} ${l.vol}권${l.done?" ✅완독":""}</td><td class="t2">${l.from}~${l.to}</td><td class="num">${l.pages}</td><td style="text-align:right">${canParent||l.date===t?`<button class="btn sm" data-act="rdDel" data-date="${l.date}" data-ix="${l.ix}">지우기</button>`:""}</td></tr>`; }).join("")}</tbody></table>`:`<p class="muted">아직 기록이 없어요. ‘오늘 할 일’의 책읽기 칸에서 기록해요.</p>`}</div>`;
+  const logs = all.logs.slice().sort((a,b)=>(b.date+(b.at||"")).localeCompare(a.date+(a.at||""))).slice(0,30);
+  h += `<div class="card" id="rdlog"><h2>독서 기록</h2>${rdEditForm(ss, canParent)}${logs.length?`<table class="list"><thead><tr><th>날짜</th><th>책</th><th>쪽</th><th class="num">읽은 쪽수</th><th></th></tr></thead><tbody>${logs.map(l=>{ const s = ss.find(x=>x.id===l.sid); return `<tr><td class="t2">${md(l.date)} ${hm(l.at)}</td><td>${esc(s?s.title:"(삭제된 책)")} ${l.vol}권${l.done?" ✅완독":""}</td><td class="t2">${l.from}~${l.to}</td><td class="num">${l.pages}</td><td style="text-align:right">${canParent||l.date===t?`<button class="btn sm" data-act="rdEdit" data-date="${l.date}" data-ix="${l.ix}">수정</button> <button class="btn sm" data-act="rdDel" data-date="${l.date}" data-ix="${l.ix}">지우기</button>`:""}</td></tr>`; }).join("")}</tbody></table>`:`<p class="muted">아직 기록이 없어요. ‘오늘 할 일’의 책읽기 칸에서 기록해요.</p>`}</div>`;
   // parent: series management
   h += `<div class="card"><h2>책 등록 ${canParent?"":'<span class="pill">🔒 보호자 잠금</span>'}</h2>`;
   if(canParent){
@@ -478,7 +509,14 @@ function viewBooks(){
       <label style="grid-column:span 2">제목<input type="text" name="title" value="${esc(s.title)}" maxlength="30" required></label>
       <label>전체 권수<input type="text" inputmode="numeric" name="volumes" value="${s.volumes}" required></label>
       <label>권당 쪽수(대략, 모르면 비움)<input type="text" inputmode="numeric" name="pages" value="${s.pages||""}"></label>
-      <div style="display:flex;gap:6px"><button class="btn primary" type="submit">저장</button>${S.delConfirm==="s:"+s.id?`<button class="btn danger" type="button" data-act="serDelYes" data-id="${esc(s.id)}">삭제 확인</button>`:`<button class="btn danger" type="button" data-act="serDel" data-id="${esc(s.id)}">삭제</button>`}</div></form>`; });
+      <div style="display:flex;gap:6px"><button class="btn primary" type="submit">저장</button>${S.delConfirm==="s:"+s.id?`<button class="btn danger" type="button" data-act="serDelYes" data-id="${esc(s.id)}">삭제 확인</button>`:`<button class="btn danger" type="button" data-act="serDel" data-id="${esc(s.id)}">삭제</button>`}</div></form>
+      <form class="editform" data-prior="${esc(s.id)}" style="margin:0 0 16px;padding:10px 12px;background:var(--surface);border-radius:12px">
+      <div style="grid-column:1/-1;font-weight:700;font-size:14px">${esc(s.title)} – 앱 쓰기 전에 읽은 것</div>
+      <label style="grid-column:span 2">다 읽은 권 (예: 1-3, 5)<input type="text" name="done" value="${esc(volsText((s.prior||{}).done||[]))}" placeholder="없으면 비움"></label>
+      <label>읽던 권<input type="text" inputmode="numeric" name="vol" value="${(s.prior||{}).vol||""}" placeholder="예) 4"></label>
+      <label>몇 쪽까지<input type="text" inputmode="numeric" name="page" value="${(s.prior||{}).page||""}" placeholder="예) 52"></label>
+      <div><button class="btn" type="submit">저장</button></div>
+      <div class="muted" style="grid-column:1/-1;font-size:12px">완독 현황과 ‘지난번 몇 쪽까지’에 반영되고, 읽은 쪽수 통계에는 들어가지 않아요.</div></form>`; });
     h += `<form class="editform" data-series="" style="border-top:1px solid var(--line);padding-top:12px">
       <label style="grid-column:span 2">새 책/시리즈 제목<input type="text" name="title" maxlength="30" required placeholder="예) 한국사 만화"></label>
       <label>전체 권수<input type="text" inputmode="numeric" name="volumes" value="1" required></label>
@@ -889,6 +927,8 @@ document.addEventListener("click", e=>{
     case "copyFam": try{ navigator.clipboard.writeText(Pref.get("fam")).then(()=>toast("가족 코드를 복사했어요")).catch(()=>toast("코드를 직접 적어 주세요")); }catch(_){ toast("코드를 직접 적어 주세요"); } break;
     case "rdSave": saveReading(S.kidDate, b.dataset.id, b.dataset.sid, +b.dataset.vol); break;
     case "rdDel": { const date = b.dataset.date, ix = +b.dataset.ix; saveDay(date, d=>{ d.reading = (d.reading||[]).filter((_,k)=>k!==ix); }); toast("기록을 지웠어요"); break; }
+    case "rdEdit": S.rdEdit = {date:b.dataset.date, ix:+b.dataset.ix}; if(S.view!=="books") location.hash = "#books"; else render(); setTimeout(()=>{ const el = document.getElementById("rdlog"); if(el) el.scrollIntoView({behavior:"smooth"}); }, 150); break;
+    case "rdEditCancel": S.rdEdit = null; render(); break;
     case "serDel": S.delConfirm = "s:"+b.dataset.id; render(); break;
     case "serDelYes": S.delConfirm = null; saveSeries(series().filter(x=>x.id!==b.dataset.id)); break;
     case "fullscreen": { const el = document.documentElement;
@@ -924,6 +964,28 @@ document.addEventListener("submit", e=>{
     if(S.editId){ items = items.map(i=> i.id===S.editId ? Object.assign({}, i, it) : i); }
     else { it.id = "i"+Date.now().toString(36)+Math.random().toString(36).slice(2,5); items.push(it); }
     S.editId = null; saveSchedule(items); toast("저장했어요");
+  } else if(f.id==="rdEditForm"){
+    const e = S.rdEdit; if(!e) return; const fd = new FormData(f);
+    const old = ((S.days[e.date]||{}).reading||[])[e.ix]; if(!old){ S.rdEdit = null; render(); return; }
+    const canParent = !needPin();
+    const nd = canParent ? String(fd.get("date")||e.date) : e.date;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(nd) || nd > today()){ toast("날짜를 확인해 주세요"); return; }
+    const sid = String(fd.get("sid")||old.sid); const ser = series().find(x=>x.id===sid);
+    const vol = parseInt(fd.get("vol"),10), from = parseInt(fd.get("from"),10), to = parseInt(fd.get("to"),10), done = !!fd.get("done");
+    if(!(vol>=1) || (ser && vol>ser.volumes)){ toast("권을 확인해 주세요"); return; }
+    if(!(from>=1) || !(to>=from)){ toast("시작 쪽과 끝 쪽을 확인해 주세요 (끝 쪽이 같거나 커야 해요)"); return; }
+    const entry = Object.assign({}, old, {sid, vol, from, to, pages: to-from+1, done, editedAt: new Date().toISOString()});
+    delete entry.date; delete entry.ix;
+    if(nd===e.date){ saveDay(e.date, d=>{ d.reading = (d.reading||[]).map((r,k)=> k===e.ix ? entry : r); }); }
+    else { saveDay(e.date, d=>{ d.reading = (d.reading||[]).filter((_,k)=>k!==e.ix); }); saveDay(nd, d=>{ d.reading = (d.reading||[]).concat([entry]); }); }
+    S.rdEdit = null; render(); toast("독서 기록을 고쳤어요");
+  } else if(f.hasAttribute("data-prior")){
+    const fd = new FormData(f); const sid = f.getAttribute("data-prior");
+    const list = series().map(x=>{ if(x.id!==sid) return x;
+      const done = parseVols(fd.get("done"), x.volumes); const vol = parseInt(fd.get("vol"),10); const page = parseInt(fd.get("page"),10);
+      const prior = {done}; if(vol>=1 && vol<=x.volumes && page>0) Object.assign(prior, {vol, page});
+      return Object.assign({}, x, {prior}); });
+    saveSeries(list); toast("이전 독서를 저장했어요");
   } else if(f.hasAttribute("data-series")){
     const fd = new FormData(f); const sid = f.getAttribute("data-series");
     const title = String(fd.get("title")||"").trim(); const volumes = parseInt(fd.get("volumes"),10); const pages = parseInt(fd.get("pages"),10) || 0;
