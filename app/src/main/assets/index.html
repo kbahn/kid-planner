@@ -184,6 +184,8 @@ table.list td.num{text-align:right;font-variant-numeric:tabular-nums}
 @keyframes slideR{from{transform:translateX(-36px);opacity:.4}to{transform:none;opacity:1}}
 main.slide-l{animation:slideL .18s ease-out} main.slide-r{animation:slideR .18s ease-out}
 #swipehint{position:fixed;top:50%;width:34px;height:34px;margin-top:-17px;border-radius:50%;background:var(--text);color:#fff;display:none;align-items:center;justify-content:center;font-size:18px;opacity:.75;z-index:40;pointer-events:none}
+#totop{position:fixed;right:16px;bottom:22px;width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.12);z-index:45;opacity:0;transform:translateY(12px);pointer-events:none;transition:opacity .18s,transform .18s}
+#totop.show{opacity:1;transform:none;pointer-events:auto}
 /* edit */
 .editform{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end}
 .editform label{font-size:13px;color:var(--text2);font-weight:700;display:flex;flex-direction:column;gap:4px}
@@ -218,6 +220,7 @@ main.slide-l{animation:slideL .18s ease-out} main.slide-r{animation:slideR .18s 
 </div>
 <div id="tip"></div>
 <div id="toast"></div>
+<button id="totop" aria-label="맨 위로" title="맨 위로">↑</button>
 
 <script>
 (function(){
@@ -1320,6 +1323,16 @@ window.onAndroidResume = function(){ tick(); if(!pendingRender) render(); pushWi
     location.hash = "#"+ids[j]; window.scrollTo(0,0);
   }, {passive:true});
   document.addEventListener("touchcancel", ()=>{ track=false; hideHint(); }, {passive:true});
+})();
+
+/* ---------- back to top ---------- */
+(function(){
+  const btn=document.getElementById("totop"); if(!btn) return;
+  const upd=()=>{ btn.classList.toggle("show", (window.scrollY||document.documentElement.scrollTop) > 400); };
+  window.addEventListener("scroll", upd, {passive:true});
+  btn.addEventListener("click", ()=>{ try{ window.scrollTo({top:0, behavior:"smooth"}); }catch(e){ window.scrollTo(0,0); } });
+  window.addEventListener("hashchange", ()=>setTimeout(upd, 50));
+  upd();
 })();
 
 /* routing */
