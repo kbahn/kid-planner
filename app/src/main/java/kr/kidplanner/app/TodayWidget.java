@@ -223,6 +223,13 @@ public class TodayWidget extends AppWidgetProvider {
             } else if (!list) {
                 label += "  ·  남은 할 일 " + open + "개";
             }
+            JSONObject rw = m.optJSONObject("reward");
+            if (rw != null) {
+                int rmin = rw.optInt("minutes", 0);
+                label = "오늘 할 일 끝! 🎉";
+                title = rmin > 0 ? "보상 " + rmin + "분 (22:00까지)" + (rw.optBoolean("given", false) ? " · 받음" : "") : "22시가 지나 오늘 보상은 없어요";
+                time = "";
+            }
             v.setTextViewText(R.id.w_next_label, label);
             v.setTextViewText(R.id.w_next_title, title);
             v.setTextViewText(R.id.w_next_time, time);
@@ -273,6 +280,9 @@ public class TodayWidget extends AppWidgetProvider {
             case "none":
                 bg = dark ? R.drawable.w_chip_red_dark : R.drawable.w_chip_red_light;
                 color = dark ? 0xFFF7C1C1 : 0xFFA32D2D; sym = "!"; break;
+            case "carry":
+                bg = dark ? R.drawable.w_chip_amber_dark : R.drawable.w_chip_amber_light;
+                color = dark ? 0xFFFAC775 : 0xFF854F0B; sym = "↻"; break;
             default:
                 if (anytime) {
                     bg = dark ? R.drawable.w_chip_amber_dark : R.drawable.w_chip_amber_light;
@@ -345,6 +355,22 @@ public class TodayWidget extends AppWidgetProvider {
             if (r.done) { if (!hideDone) doneRows.add(r); } else out.add(r);
         }
         out.addAll(doneRows);
+        // 밀린 일(이월)은 맨 위에
+        JSONArray carry = m.optJSONArray("carry");
+        if (carry != null && WidgetData.today().equals(m.optString("checksDate"))) {
+            List<Row> cr = new ArrayList<>();
+            for (int i = 0; i < carry.length(); i++) {
+                JSONObject x = carry.optJSONObject(i);
+                if (x == null) continue;
+                Row r = new Row();
+                r.status = "carry";
+                r.time = x.optString("from");
+                r.title = x.optString("title") + " (밀린 일)";
+                r.at = "";
+                cr.add(r);
+            }
+            out.addAll(0, cr);
+        }
         return out;
     }
 }

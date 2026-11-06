@@ -296,7 +296,7 @@ async function connect(){
     if(HasAndroid && safe(()=>Android.getPref("childName"), "") !== kidName()){ safe(()=>Android.setPref("childName", kidName())); }
   }, onErr));
   S.unsubs.push(db.collection("days").onSnapshot(snap=>{
-    const m = {}; snap.docs.forEach(d=>{ m[d.id] = d.data(); }); Object.keys(S.pendingDays||{}).forEach(k=>{ m[k] = S.pendingDays[k]; }); S.days = m; mark("days", snap); render(); pushWidget();
+    const m = {}; snap.docs.forEach(d=>{ m[d.id] = d.data(); }); Object.keys(S.pendingDays||{}).forEach(k=>{ m[k] = S.pendingDays[k]; }); S.days = m; mark("days", snap); render(); pushWidget(); if(S.role==="kid" && snap.metadata && !snap.metadata.fromCache) setTimeout(maybeReward, 200);
   }, onErr));
   S.unsubs.push(db.doc("reading/main").onSnapshot(snap=>{
     S.readingCfg = snap.exists ? (snap.data()||{}) : {}; render();
@@ -391,7 +391,84 @@ function setCheck(date, id, s){
     if(s!=="done" && prev && prev.reason) doc.checks[id].reason = prev.reason;
     S.openReason = s==="done" ? null : id;
   });
+  if(date===today()) setTimeout(maybeReward, 50);
 }
+/* ---------- 이월: 지난날 끝내지 못한 '스스로 공부'는 다 할 때까지 오늘로 넘어옴 ---------- */
+const CARRY_DAYS = 14;
+function carriedItems(date){
+  date = date || today(); const out = []; const s0 = startDate();
+  for(let k=1; k<=CARRY_DAYS; k++){
+    const d = addDays(date, -k); if(d < s0) break;
+    checkable(planFor(d)).forEach(i=>{
+      if(i.cat!=="study") return;               // 학원·수업·독서는 이월하지 않음
+      const st = statusOf(d, i);
+      if(st==="done" || st==="future") return;
+      out.push({date:d, item:i, st, c: (S.days[d]&&S.days[d].checks||{})[i.id]});
+    });
+  }
+  return out.sort((a,b)=> a.date.localeCompare(b.date) || toMin(a.item.start)-toMin(b.item.start));
+}
+function setCarry(origDate, id, s){
+  saveDay(origDate, doc=>{
+    const prev = doc.checks[id];
+    if(prev && prev.late && prev.s===s && prev.doneOn===today()){   // 같은 버튼 다시 → 되돌리기
+      if(prev.prev) doc.checks[id] = prev.prev; else delete doc.checks[id]; return;
+    }
+    const keep = prev ? (prev.late && prev.prev ? prev.prev : {s:prev.s, at:prev.at, reason:prev.reason||null}) : null;
+    doc.checks[id] = {s, at:new Date().toISOString(), late:true, doneOn: today(), prev: keep};
+  });
+  setTimeout(maybeReward, 50);
+}
+
+/* ---------- 오늘 다 하면 보상 (Family Link 보너스, 22시까지) ---------- */
+const REWARD_MIN = 30, REWARD_END = 22*60;
+function rewardMinutesAt(d){ const left = REWARD_END - (d.getHours()*60 + d.getMinutes()); return Math.max(0, Math.min(REWARD_MIN, Math.floor(left/5)*5)); }
+function rewardState(){
+  const t = today(); const items = checkable(planFor(t));
+  const allDone = items.length>0 && items.every(i=>statusOf(t,i)==="done");
+  const carry = carriedItems(t).length;
+  return {allDone, carry, eligible: allDone && carry===0, reward: (S.days[t]||{}).reward || null};
+}
+function maybeReward(){
+  if(!S.db) return; const t = today(); const r = rewardState();
+  if(r.eligible && !r.reward){ const now = new Date(); saveDay(t, d=>{ d.reward = {at: now.toISOString(), minutes: rewardMinutesAt(now), given:false}; }); }
+  else if(!r.eligible && r.reward && !r.reward.given){ saveDay(t, d=>{ delete d.reward; }); }
+}
+function rewardCard(forParent){
+  const r = rewardState(); const t = today();
+  if(r.reward){
+    const m = r.reward.minutes, when = hm(r.reward.at);
+    if(forParent){
+      return `<div class="card" style="border:2px solid var(--done);background:var(--done-soft)"><h2>🎉 ${esc(KNga())} 오늘 할 일을 다 했어요 <span class="muted" style="font-size:14px;font-weight:400">${when}</span></h2>
+        ${m>0?`<p style="margin:0 0 10px;font-size:16px">Family Link에서 <b>보너스 ${m}분</b>을 주세요 (22:00까지).</p>`:`<p style="margin:0 0 10px">22시가 지나 끝내서 오늘 보너스는 없어요.</p>`}
+        ${r.reward.given?`<span class="st done">✅ ${hm(r.reward.givenAt)} 보너스 줬어요</span>`:(m>0?`<button class="btn primary" data-act="openFL">Family Link 열기</button> <button class="btn" data-act="rewardGiven">줬어요</button>`:"")}</div>`;
+    }
+    return `<div class="card" style="border:2px solid var(--done);background:var(--done-soft);text-align:center"><div style="font-size:40px">🎉</div>
+      <div class="big" style="font-family:Jua;font-size:24px">오늘 할 일 끝!</div>
+      ${m>0?`<p style="font-size:17px;margin:6px 0 0">보상 <b>${m}분</b> (22:00까지) ${r.reward.given?"– 보호자가 보너스를 줬어요 ✅":"– 보호자에게 알렸어요"}</p>`:`<p style="margin:6px 0 0">22시가 지나서 오늘 보상은 없어요. 내일은 조금 더 일찍!</p>`}</div>`;
+  }
+  if(forParent || !checkable(planFor(t)).length) return "";
+  const left = checkable(planFor(t)).filter(i=>statusOf(t,i)!=="done").length + r.carry;
+  const m = rewardMinutesAt(new Date());
+  return m>0 ? `<div class="notice" style="text-align:center">🎁 오늘 할 일${r.carry?"과 밀린 일":""}을 모두 <b>다 했어요</b>로 체크하면 <b>보상 ${m}분</b>! (남은 ${left}개)</div>` : "";
+}
+function carryCard(forParent){
+  const list = carriedItems(today()); if(!list.length) return "";
+  let h = `<div class="card" style="border:2px solid var(--partial)"><h2>📌 밀린 일 ${list.length}개 <span class="muted" style="font-size:13px;font-weight:400">다 할 때까지 매일 넘어와요</span></h2>`;
+  if(forParent){
+    h += `<table class="list"><tbody>${list.map(x=>`<tr><td class="t2">${md(x.date)}(${DAYS[wdIdx(x.date)]})</td><td>${esc(x.item.title)}</td><td><span class="st ${x.st}">${ST_SHORT[x.st]}</span></td></tr>`).join("")}</tbody></table>`;
+  } else {
+    h += `<div class="timeline">${list.map(x=>`<div class="item s-${x.st==="partial"?"partial":""}" style="grid-template-columns:86px 1fr">
+      <div class="time">${md(x.date)}<small>${DAYS[wdIdx(x.date)]}요일</small></div>
+      <div><div class="title">${esc(x.item.title)} <span class="badge late">${x.st==="partial"?"조금 했어요":x.st==="miss"?"못 했어요":"안 했어요"}</span></div>
+      <div class="choices">
+        <button class="choice done" data-act="carry" data-date="${x.date}" data-id="${esc(x.item.id)}" data-s="done"><span class="e">✅</span>다 했어요</button>
+        <button class="choice partial ${x.c&&x.c.late&&x.c.s==="partial"&&x.c.doneOn===today()?"on":""}" data-act="carry" data-date="${x.date}" data-id="${esc(x.item.id)}" data-s="partial"><span class="e">🔶</span>조금 했어요</button>
+      </div></div></div>`).join("")}</div>`;
+  }
+  return h + `</div>`;
+}
+
 function setReason(date, id, r){
   saveDay(date, doc=>{ const c = doc.checks[id]; if(!c) return; if(c.reason===r) delete c.reason; else c.reason = r; });
 }
@@ -622,6 +699,7 @@ function viewToday(){
     <div class="daynav"><button class="btn" data-act="kidPrev" aria-label="이전 날">◀</button>
     <button class="btn" data-act="kidToday" ${isToday?"disabled":""}>오늘</button>
     <button class="btn" data-act="kidNext" aria-label="다음 날" ${date>=t?"disabled":""}>▶</button></div></div>`;
+  if(isToday){ h += rewardCard(false); h += carryCard(false); }
   h += `<div class="timeline">`;
   plan.forEach(i=>{
     const c = doc.checks && doc.checks[i.id];
@@ -695,6 +773,7 @@ function viewParent(){
     <div class="kpi"><div class="lbl">이번 주 달성률</div><div class="val">${pct(wk.agg.rate)}</div><div class="sub">월~오늘 할 일 ${wk.agg.total}개 기준 · 연속 80%↑ ${wk.streak}일</div></div>
     <div class="kpi"><div class="lbl">마지막 체크</div><div class="val" style="font-size:22px">${last?esc(hm(last.at)):"–"}</div><div class="sub">${last?esc((last.date===t?"오늘":md(last.date))+" · "+last.title):"아직 기록 없음"}</div></div>
   </div>`;
+  h += rewardCard(true) + carryCard(true);
   h += `<div class="row"><div class="card"><h2>지금 할 일</h2>
     <p style="font-size:17px;margin:0 0 6px">${nowItem?`<b>${esc(nowItem.title)}</b> 시간이에요 <span class="muted">(${nowItem.start}~${nowItem.end})</span>`:"지금은 일정 사이 시간이에요."}</p>
     <p class="t2" style="margin:0">${nextItem?`다음: ${esc(nextItem.start)} ${esc(nextItem.title)}`:"오늘 남은 일정이 없어요."}</p>
@@ -889,6 +968,9 @@ document.addEventListener("click", e=>{
   switch(a){
     case "lock": if(S.role==="parent") break; S.unlocked=false; store("hs_unlocked",null); try{sessionStorage.removeItem("hs_unlocked");}catch(_){} location.hash="#today"; render(); break;
     case "check": setCheck(S.kidDate, b.dataset.id, b.dataset.s); break;
+    case "carry": setCarry(b.dataset.date, b.dataset.id, b.dataset.s); break;
+    case "openFL": if(HasAndroid && window.Android.openFamilyLink) safe(()=>Android.openFamilyLink()); else toast("휴대폰의 Family Link 앱을 열어 보너스 시간을 주세요"); break;
+    case "rewardGiven": saveDay(today(), d=>{ if(d.reward){ d.reward.given = true; d.reward.givenAt = new Date().toISOString(); } }); toast("보너스 준 것으로 표시했어요"); break;
     case "reason": setReason(S.kidDate, b.dataset.id, b.dataset.r); break;
     case "mood": saveDay(S.kidDate, d=>{ d.mood = d.mood===b.dataset.m ? "" : b.dataset.m; }); break;
     case "saveNote": { const k="note:"+S.kidDate; const v = S.drafts[k]!=null?S.drafts[k]:((S.days[S.kidDate]||{}).note||""); delete S.drafts[k]; saveDay(S.kidDate, d=>{ d.note = v.trim().slice(0,300); }); toast("한마디를 저장했어요 ✉️"); break; }
@@ -1245,7 +1327,9 @@ function notifyPanel(){
 function widgetStyle(){ const d = {mode:"list", theme:"light", hide:"0"}; const j = HasAndroid ? safe(()=>JSON.parse(Android.getWidgetStyle()||"{}"), {}) : {}; return Object.assign(d, j||{}); }
 function saveWidgetStyle(st){ if(!HasAndroid) return; safe(()=>Android.setWidgetStyle(st.mode, st.theme, st.hide==="1")); toast("위젯에 적용했어요"); render(); }
 let widgetTimer = null;
-function widgetPayload(){ const t = today(); const d = S.days[t] || {}; return JSON.stringify({sched: schedItems(), checksDate: t, checks: d.checks || {}}); }
+function widgetPayload(){ const t = today(); const d = S.days[t] || {};
+  const carry = carriedItems(t).map(x=>({id:x.item.id, title:x.item.title, from: md(x.date), st:x.st}));
+  return JSON.stringify({sched: schedItems(), checksDate: t, checks: d.checks || {}, carry, reward: d.reward || null}); }
 function pushWidgetNow(){ if(!HasAndroid || !S.scheduleLoaded) return; safe(()=>Android.pushWidgetData(widgetPayload())); }
 function pushWidget(){ clearTimeout(widgetTimer); widgetTimer = setTimeout(pushWidgetNow, 800); }
 function widgetPanel(){

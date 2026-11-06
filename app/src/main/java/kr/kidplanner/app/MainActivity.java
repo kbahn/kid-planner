@@ -115,6 +115,8 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         NotifyScheduler.reschedule(this);
+        // 보호자 폰은 위젯이 없어도 15분마다 아이 상태를 받아 '다 했어요' 알림을 띄움
+        if ("parent".equals(prefs.getString("role", ""))) WidgetJob.schedulePeriodic(this);
         if (pendingUrl != null && (Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls())) {
             String u = pendingUrl, ver = pendingVersion;
             pendingUrl = null;
@@ -385,6 +387,28 @@ public class MainActivity extends Activity {
             WidgetData.saveDefaultStyleForAll(MainActivity.this, TodayWidget.ids(MainActivity.this),
                     mode == null ? "list" : mode, theme == null ? "light" : theme, hideDone);
             runOnUiThread(() -> TodayWidget.updateAll(MainActivity.this));
+        }
+
+        // ---------------- 보상 (Family Link)
+
+        @JavascriptInterface
+        public void openFamilyLink() {
+            runOnUiThread(() -> {
+                Intent fl = NotifyScheduler.familyLinkIntent(MainActivity.this);
+                try {
+                    if (fl != null) {
+                        fl.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(fl);
+                        return;
+                    }
+                    startActivity(new Intent(Intent.ACTION_VIEW,
+                            Uri.parse("market://details?id=" + NotifyScheduler.FAMILY_LINK_PKG)));
+                } catch (Exception e) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://families.google.com/familylink/")));
+                    } catch (Exception ignored) { }
+                }
+            });
         }
 
         // ---------------- 앱 업데이트

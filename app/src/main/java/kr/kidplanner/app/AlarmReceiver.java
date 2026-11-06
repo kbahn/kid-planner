@@ -42,6 +42,7 @@ public class AlarmReceiver extends BroadcastReceiver {
                     TodayWidget.updateAll(c);
                 }
                 NotifyScheduler.show(c, events);
+                NotifyScheduler.checkReward(c);
             } catch (Exception ex) {
                 Log.w("KidPlannerAlarm", "alarm failed", ex);
             } finally {

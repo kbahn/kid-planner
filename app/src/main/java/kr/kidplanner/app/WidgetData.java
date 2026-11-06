@@ -143,6 +143,10 @@ final class WidgetData {
         model.put("checksDate", t);
         JSONObject checks = day != null ? day.optJSONObject("checks") : null;
         model.put("checks", checks != null ? checks : new JSONObject());
+        JSONObject reward = day != null ? day.optJSONObject("reward") : null;
+        if (reward != null) model.put("reward", reward);
+        JSONObject prev = loadModel(c);   // 밀린 일 목록은 앱이 계산해 넘겨준 값을 유지
+        if (prev != null && prev.optJSONArray("carry") != null && t.equals(prev.optString("checksDate"))) model.put("carry", prev.optJSONArray("carry"));
         model.put("at", System.currentTimeMillis());
         p.edit().putString("w_model", model.toString()).apply();
         return true;

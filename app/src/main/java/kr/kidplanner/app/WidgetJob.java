@@ -29,7 +29,8 @@ public class WidgetJob extends JobService {
     }
 
     static void refreshNow(Context c) {
-        if (TodayWidget.ids(c).length == 0) return;
+        boolean parent = "parent".equals(WidgetData.prefs(c).getString("role", ""));
+        if (TodayWidget.ids(c).length == 0 && !parent) return;
         JobScheduler js = (JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
         if (js == null) return;
         JobInfo info = new JobInfo.Builder(NOW_ID, new ComponentName(c, WidgetJob.class))
@@ -56,6 +57,7 @@ public class WidgetJob extends JobService {
                 Log.w("KidPlannerWidget", "fetch failed", e);
             }
             TodayWidget.updateAll(ctx);
+            try { NotifyScheduler.checkReward(ctx); } catch (Exception ignored) { }
             jobFinished(params, false);
         }).start();
         return true;
