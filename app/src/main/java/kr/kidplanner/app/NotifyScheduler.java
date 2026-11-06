@@ -276,10 +276,9 @@ final class NotifyScheduler {
         int min = r.optInt("minutes", 0);
         String kid = p.getString("childName", "");
         String head = (kid.isEmpty() ? "아이가" : kid + "가") + " 오늘 할 일을 다 했어요 🎉";
-        String body = min > 0 ? "Family Link에서 보너스 " + min + "분을 주세요 (22:00까지). 누르면 Family Link가 열려요."
+        String body = min > 0 ? "Family Link에서 보너스 " + min + "분을 주세요 (22:00까지). 누르면 앱이 열리고 'Family Link 열기' 버튼이 있어요."
                 : "22시가 지나서 오늘 보너스는 없어요.";
-        Intent fl = familyLinkIntent(c);
-        if (fl == null || min <= 0) fl = new Intent(c, MainActivity.class);
+        Intent fl = new Intent(c, MainActivity.class);
         fl.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         PendingIntent pi = PendingIntent.getActivity(c, 2, fl, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification n = new Notification.Builder(c, CHANNEL)
@@ -296,13 +295,12 @@ final class NotifyScheduler {
 
     static final String FAMILY_LINK_PKG = "com.google.android.apps.kids.familylink";
 
-    /** 설치돼 있으면 Family Link(보호자용) 실행 인텐트, 없으면 null */
+    /** Family Link 실행 인텐트 (설치 여부 조회 없이 바로 실행 – 옛 안드로이드 호환을 위해 <queries> 미사용) */
     static Intent familyLinkIntent(Context c) {
-        try {
-            return c.getPackageManager().getLaunchIntentForPackage(FAMILY_LINK_PKG);
-        } catch (Exception e) {
-            return null;
-        }
+        Intent i = new Intent(Intent.ACTION_MAIN);
+        i.addCategory(Intent.CATEGORY_LAUNCHER);
+        i.setPackage(FAMILY_LINK_PKG);
+        return i;
     }
 
     static void test(Context c) {

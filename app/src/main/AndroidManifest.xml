@@ -12,11 +12,6 @@
     <!-- 앱 안에서 새 버전 APK 설치 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- 보상: 보호자 폰에서 Family Link 앱 열기 -->
-    <queries>
-        <package android:name="com.google.android.apps.kids.familylink" />
-    </queries>
-
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

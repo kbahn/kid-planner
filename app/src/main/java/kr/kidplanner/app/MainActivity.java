@@ -394,13 +394,13 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openFamilyLink() {
             runOnUiThread(() -> {
-                Intent fl = NotifyScheduler.familyLinkIntent(MainActivity.this);
                 try {
-                    if (fl != null) {
-                        fl.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(fl);
-                        return;
-                    }
+                    Intent fl = NotifyScheduler.familyLinkIntent(MainActivity.this);
+                    fl.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(fl);
+                    return;
+                } catch (Exception notInstalled) { }
+                try {
                     startActivity(new Intent(Intent.ACTION_VIEW,
                             Uri.parse("market://details?id=" + NotifyScheduler.FAMILY_LINK_PKG)));
                 } catch (Exception e) {
