@@ -50,7 +50,7 @@ public class WidgetConfigActivity extends Activity {
         col.setPadding(pad, pad, pad, pad);
         scroll.addView(col);
 
-        TextView title = text("🧩 위젯 설정", 24, true, 0xFF1D1C1A);
+        TextView title = text(" 위젯 설정", 24, true, 0xFF1D1C1A);
         col.addView(title);
         col.addView(text("홈 화면에 보일 모양을 골라 주세요. 나중에 앱의 ⚙ 설정에서도 바꿀 수 있어요.", 15, false, 0xFF55534E), lp(8));
 

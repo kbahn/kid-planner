@@ -275,7 +275,7 @@ final class NotifyScheduler {
         if (nm == null) return;
         int min = r.optInt("minutes", 0);
         String kid = p.getString("childName", "");
-        String head = (kid.isEmpty() ? "아이가" : kid + "가") + " 오늘 할 일을 다 했어요 🎉";
+        String head = (kid.isEmpty() ? "아이가" : kid + "가") + " 오늘 할 일을 다 했어요";
         String body = min > 0 ? "Family Link에서 보너스 " + min + "분을 주세요 (22:00까지). 누르면 앱이 열리고 'Family Link 열기' 버튼이 있어요."
                 : "22시가 지나서 오늘 보너스는 없어요.";
         Intent fl = new Intent(c, MainActivity.class);

@@ -187,7 +187,8 @@ public class TodayWidget extends AppWidgetProvider {
             int total = tasks.size();
             int pct = total == 0 ? 0 : Math.round((done + partial * 0.5f) * 100f / total);
             v.setTextViewText(R.id.w_pct, total == 0 ? "–" : pct + "%");
-            v.setTextViewText(R.id.w_count, total == 0 ? "오늘 할 일 없음" : total + "개 중 " + done + "개 완료");
+            int carryN = WidgetData.today().equals(m.optString("checksDate")) ? m.optInt("carryCount", 0) : 0;
+            v.setTextViewText(R.id.w_count, (total == 0 ? "오늘 할 일 없음" : total + "개 중 " + done + "개 완료") + (carryN > 0 ? " · 밀린 일 " + carryN : ""));
             v.setProgressBar(R.id.w_progress, 100, pct, false);
 
             // 지금 / 다음 할 일 (체크할 일을 먼저, 없으면 생활 일정)
@@ -226,7 +227,7 @@ public class TodayWidget extends AppWidgetProvider {
             JSONObject rw = m.optJSONObject("reward");
             if (rw != null) {
                 int rmin = rw.optInt("minutes", 0);
-                label = "오늘 할 일 끝! 🎉";
+                label = "오늘 할 일 끝!";
                 title = rmin > 0 ? "보상 " + rmin + "분 (22:00까지)" + (rw.optBoolean("given", false) ? " · 받음" : "") : "22시가 지나 오늘 보상은 없어요";
                 time = "";
             }
@@ -355,22 +356,6 @@ public class TodayWidget extends AppWidgetProvider {
             if (r.done) { if (!hideDone) doneRows.add(r); } else out.add(r);
         }
         out.addAll(doneRows);
-        // 밀린 일(이월)은 맨 위에
-        JSONArray carry = m.optJSONArray("carry");
-        if (carry != null && WidgetData.today().equals(m.optString("checksDate"))) {
-            List<Row> cr = new ArrayList<>();
-            for (int i = 0; i < carry.length(); i++) {
-                JSONObject x = carry.optJSONObject(i);
-                if (x == null) continue;
-                Row r = new Row();
-                r.status = "carry";
-                r.time = x.optString("from");
-                r.title = x.optString("title") + " (밀린 일)";
-                r.at = "";
-                cr.add(r);
-            }
-            out.addAll(0, cr);
-        }
         return out;
     }
 }

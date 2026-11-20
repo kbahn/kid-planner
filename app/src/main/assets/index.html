@@ -52,6 +52,14 @@ nav.tabs a .ti{margin-right:5px}
 .notice.err{background:var(--miss-soft);border-color:#f2c3c3;color:#8a1f1f}
 .btn{border:1px solid var(--line);background:var(--card);color:var(--text);padding:9px 14px;border-radius:12px;font-weight:700;font-size:14px}
 .btn.primary{background:var(--text);border-color:var(--text);color:#fff}
+.crows{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.crow{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.crow.s-partial{border-color:var(--partial)}
+.crow .cdate{display:flex;align-items:center;gap:6px;font-size:16px;font-weight:600}
+.crow .cdate small{color:var(--text2);font-weight:400;font-size:13px}
+.crow .cbtns{display:flex;gap:6px;margin-left:auto}
+.crow .cbtns .btn.on{background:var(--partial-soft);border-color:var(--partial)}
+.crow .cbtns .cdone{border-color:var(--done);color:var(--done)}
 .btn.danger{color:var(--miss);border-color:#f2c3c3}
 .btn.sm{padding:5px 10px;font-size:13px;border-radius:9px}
 .btn:disabled{opacity:.4;cursor:default}
@@ -371,7 +379,7 @@ function rangeStats(from, to){
 function dayDocForWrite(date){
   const cur = S.days[date] || {};
   const plan = date===today() || !Array.isArray(cur.plan) || !cur.plan.length ? planFor(date) : cur.plan;
-  return {date, plan, checks: cur.checks || {}, reading: Array.isArray(cur.reading) ? cur.reading : [], mood: cur.mood || "", note: cur.note || "", updatedAt: new Date().toISOString()};
+  return Object.assign({}, cur, {date, plan, checks: cur.checks || {}, reading: Array.isArray(cur.reading) ? cur.reading : [], mood: cur.mood || "", note: cur.note || "", updatedAt: new Date().toISOString()});
 }
 function saveDay(date, mutate){
   if(!S.db){ toast("저장 기능이 연결되지 않았어요."); return; }
@@ -399,8 +407,10 @@ function carriedItems(date){
   date = date || today(); const out = []; const s0 = startDate();
   for(let k=1; k<=CARRY_DAYS; k++){
     const d = addDays(date, -k); if(d < s0) break;
+    const dis = (S.days[d] && S.days[d].carryDismissed) || {};
     checkable(planFor(d)).forEach(i=>{
       if(i.cat!=="study") return;               // 학원·수업·독서는 이월하지 않음
+      if(dis[i.id]) return;                     // 밀린 일 탭에서 삭제한 항목
       const st = statusOf(d, i);
       if(st==="done" || st==="future") return;
       out.push({date:d, item:i, st, c: (S.days[d]&&S.days[d].checks||{})[i.id]});
@@ -419,6 +429,20 @@ function setCarry(origDate, id, s){
   });
   setTimeout(maybeReward, 50);
 }
+/* 밀린 일 삭제: 원래 날짜 문서에 carryDismissed 표시 (기록·통계는 그대로) */
+function dismissCarry(list){
+  if(needPin()){ toast("삭제하려면 보호자 잠금을 풀어 주세요"); return; }
+  if(!list.length) return;
+  const byDate = {}; list.forEach(x=>{ (byDate[x.date] = byDate[x.date] || []).push(x.item.id); });
+  const now = new Date().toISOString();
+  Object.keys(byDate).forEach(d=> saveDay(d, doc=>{ doc.carryDismissed = doc.carryDismissed || {}; byDate[d].forEach(id=>{ doc.carryDismissed[id] = now; }); }));
+  S.carryArm = null; toast(`밀린 일 ${list.length}개를 지웠어요`);
+}
+function carryGroups(){
+  const g = {}, order = [];
+  carriedItems(today()).forEach(x=>{ const k = x.item.title; if(!g[k]){ g[k] = []; order.push(k); } g[k].push(x); });
+  return order.map(k=>({title:k, list:g[k]}));
+}
 
 /* ---------- 오늘 다 하면 보상 (Family Link 보너스, 22시까지) ---------- */
 const REWARD_MIN = 30, REWARD_END = 22*60;
@@ -426,8 +450,7 @@ function rewardMinutesAt(d){ const left = REWARD_END - (d.getHours()*60 + d.getM
 function rewardState(){
   const t = today(); const items = checkable(planFor(t));
   const allDone = items.length>0 && items.every(i=>statusOf(t,i)==="done");
-  const carry = carriedItems(t).length;
-  return {allDone, carry, eligible: allDone && carry===0, reward: (S.days[t]||{}).reward || null};
+  return {allDone, eligible: allDone, reward: (S.days[t]||{}).reward || null};
 }
 function maybeReward(){
   if(!S.db) return; const t = today(); const r = rewardState();
@@ -448,25 +471,38 @@ function rewardCard(forParent){
       ${m>0?`<p style="font-size:17px;margin:6px 0 0">보상 <b>${m}분</b> (22:00까지) ${r.reward.given?"– 보호자가 보너스를 줬어요 ✅":"– 보호자에게 알렸어요"}</p>`:`<p style="margin:6px 0 0">22시가 지나서 오늘 보상은 없어요. 내일은 조금 더 일찍!</p>`}</div>`;
   }
   if(forParent || !checkable(planFor(t)).length) return "";
-  const left = checkable(planFor(t)).filter(i=>statusOf(t,i)!=="done").length + r.carry;
+  const left = checkable(planFor(t)).filter(i=>statusOf(t,i)!=="done").length;
   const m = rewardMinutesAt(new Date());
-  return m>0 ? `<div class="notice" style="text-align:center">🎁 오늘 할 일${r.carry?"과 밀린 일":""}을 모두 <b>다 했어요</b>로 체크하면 <b>보상 ${m}분</b>! (남은 ${left}개)</div>` : "";
+  return m>0 ? `<div class="notice" style="text-align:center">🎁 오늘 할 일을 모두 <b>다 했어요</b>로 체크하면 <b>보상 ${m}분</b>! (남은 ${left}개)</div>` : "";
 }
-function carryCard(forParent){
-  const list = carriedItems(today()); if(!list.length) return "";
-  let h = `<div class="card" style="border:2px solid var(--partial)"><h2>📌 밀린 일 ${list.length}개 <span class="muted" style="font-size:13px;font-weight:400">다 할 때까지 매일 넘어와요</span></h2>`;
-  if(forParent){
-    h += `<table class="list"><tbody>${list.map(x=>`<tr><td class="t2">${md(x.date)}(${DAYS[wdIdx(x.date)]})</td><td>${esc(x.item.title)}</td><td><span class="st ${x.st}">${ST_SHORT[x.st]}</span></td></tr>`).join("")}</tbody></table>`;
-  } else {
-    h += `<div class="timeline">${list.map(x=>`<div class="item s-${x.st==="partial"?"partial":""}" style="grid-template-columns:86px 1fr">
-      <div class="time">${md(x.date)}<small>${DAYS[wdIdx(x.date)]}요일</small></div>
-      <div><div class="title">${esc(x.item.title)} <span class="badge late">${x.st==="partial"?"조금 했어요":x.st==="miss"?"못 했어요":"안 했어요"}</span></div>
-      <div class="choices">
-        <button class="choice done" data-act="carry" data-date="${x.date}" data-id="${esc(x.item.id)}" data-s="done"><span class="e">✅</span>다 했어요</button>
-        <button class="choice partial ${x.c&&x.c.late&&x.c.s==="partial"&&x.c.doneOn===today()?"on":""}" data-act="carry" data-date="${x.date}" data-id="${esc(x.item.id)}" data-s="partial"><span class="e">🔶</span>조금 했어요</button>
-      </div></div></div>`).join("")}</div>`;
-  }
-  return h + `</div>`;
+function carrySummary(){
+  const n = carriedItems(today()).length; if(!n) return "";
+  return `<div class="notice">📌 밀린 일 <b>${n}개</b>가 있어요. <a href="#carry">밀린 일 탭에서 보기·삭제</a></div>`;
+}
+function viewCarry(){
+  const groups = carryGroups(); const total = groups.reduce((a,g)=>a+g.list.length, 0);
+  const canDel = !needPin(); const arm = S.carryArm;
+  let h = `<div class="card"><h2>📌 밀린 일 ${total}개</h2><p class="t2" style="margin:0">최근 ${CARRY_DAYS}일 동안 끝내지 못한 ‘스스로 공부’예요. 다 했으면 체크하고, 이제 안 해도 되는 건 지워요.</p>
+    ${total && canDel ? `<div style="margin-top:10px;text-align:right">${arm==="*"
+      ?`<span class="t2" style="font-size:14px">정말 ${total}개 모두 지울까요?</span> <button class="btn sm" data-act="carryArm" data-k="">취소</button> <button class="btn sm danger" data-act="carryDelAll">모두 지우기</button>`
+      :`<button class="btn sm" data-act="carryArm" data-k="*">🗑 전체 삭제</button>`}</div>` : ""}
+    ${total && !canDel ? `<p class="t2" style="margin:8px 0 0;font-size:14px">🔒 삭제는 설정에서 보호자 잠금을 푼 뒤에 할 수 있어요.</p>` : ""}</div>`;
+  if(!total) return h + `<div class="card muted" style="text-align:center;font-size:17px">밀린 일이 없어요 👍</div>`;
+  groups.forEach((g, gi)=>{
+    h += `<div class="card"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0;flex:1">${esc(g.title)} <span class="muted" style="font-size:14px;font-weight:400">${g.list.length}개</span></h2>
+      ${canDel ? (arm===String(gi)
+        ?`<button class="btn sm" data-act="carryArm" data-k="">취소</button> <button class="btn sm danger" data-act="carryDelGroup" data-g="${gi}">${g.list.length}개 지우기</button>`
+        :`<button class="btn sm" data-act="carryArm" data-k="${gi}">🗑 ${g.list.length>1?"한번에 삭제":"삭제"}</button>`) : ""}</div>
+      <div class="crows">${g.list.map(x=>{ const pOn = x.c&&x.c.late&&x.c.s==="partial"&&x.c.doneOn===today();
+        return `<div class="crow ${x.st==="partial"?"s-partial":""}">
+        <div class="cdate">${md(x.date)} <small>${DAYS[wdIdx(x.date)]}</small><span class="badge late">${x.st==="partial"?"조금 했어요":x.st==="miss"?"못 했어요":"안 했어요"}</span></div>
+        <div class="cbtns">
+          <button class="btn sm cdone" data-act="carry" data-date="${x.date}" data-id="${esc(x.item.id)}" data-s="done">✅ 다 했어요</button>
+          <button class="btn sm ${pOn?"on":""}" data-act="carry" data-date="${x.date}" data-id="${esc(x.item.id)}" data-s="partial">🔶 조금</button>
+          ${canDel?`<button class="btn sm danger" data-act="carryDelOne" data-date="${x.date}" data-id="${esc(x.item.id)}" aria-label="지우기">🗑</button>`:""}
+        </div></div>`; }).join("")}</div></div>`;
+  });
+  return h;
 }
 
 function setReason(date, id, r){
@@ -622,6 +658,7 @@ function saveSeries(list){
 /* ===================== UI: shell ===================== */
 const VIEWS = [
   {id:"today",  icon:"🙋", label:"오늘 할 일", locked:false},
+  {id:"carry",  icon:"📌", label:"밀린 일", locked:false},
   {id:"books",  icon:"📚", label:"독서", locked:false},
   {id:"review", icon:"💬", label:"주간 리뷰", locked:false},
   {id:"parent", icon:"👀", label:"현황 관리", locked:true},
@@ -667,7 +704,7 @@ function render(){
   if(S.setup){ main.innerHTML = viewSetup(); return; }
   if(v.locked && needPin()){ main.innerHTML = viewPin(); return; }
   if(!S.scheduleLoaded && !S.error){ main.innerHTML = `<div class="card muted">불러오는 중…</div>`; return; }
-  const fn = {settings:viewSettings, today:viewToday, books:viewBooks, review:viewReview, parent:viewParent, stats:viewStats, edit:viewEdit}[v.id];
+  const fn = {settings:viewSettings, today:viewToday, carry:viewCarry, books:viewBooks, review:viewReview, parent:viewParent, stats:viewStats, edit:viewEdit}[v.id];
   main.innerHTML = fn();
 }
 
@@ -699,7 +736,7 @@ function viewToday(){
     <div class="daynav"><button class="btn" data-act="kidPrev" aria-label="이전 날">◀</button>
     <button class="btn" data-act="kidToday" ${isToday?"disabled":""}>오늘</button>
     <button class="btn" data-act="kidNext" aria-label="다음 날" ${date>=t?"disabled":""}>▶</button></div></div>`;
-  if(isToday){ h += rewardCard(false); h += carryCard(false); }
+  if(isToday){ h += rewardCard(false); }
   h += `<div class="timeline">`;
   plan.forEach(i=>{
     const c = doc.checks && doc.checks[i.id];
@@ -773,7 +810,7 @@ function viewParent(){
     <div class="kpi"><div class="lbl">이번 주 달성률</div><div class="val">${pct(wk.agg.rate)}</div><div class="sub">월~오늘 할 일 ${wk.agg.total}개 기준 · 연속 80%↑ ${wk.streak}일</div></div>
     <div class="kpi"><div class="lbl">마지막 체크</div><div class="val" style="font-size:22px">${last?esc(hm(last.at)):"–"}</div><div class="sub">${last?esc((last.date===t?"오늘":md(last.date))+" · "+last.title):"아직 기록 없음"}</div></div>
   </div>`;
-  h += rewardCard(true) + carryCard(true);
+  h += rewardCard(true) + carrySummary();
   h += `<div class="row"><div class="card"><h2>지금 할 일</h2>
     <p style="font-size:17px;margin:0 0 6px">${nowItem?`<b>${esc(nowItem.title)}</b> 시간이에요 <span class="muted">(${nowItem.start}~${nowItem.end})</span>`:"지금은 일정 사이 시간이에요."}</p>
     <p class="t2" style="margin:0">${nextItem?`다음: ${esc(nextItem.start)} ${esc(nextItem.title)}`:"오늘 남은 일정이 없어요."}</p>
@@ -969,6 +1006,10 @@ document.addEventListener("click", e=>{
     case "lock": if(S.role==="parent") break; S.unlocked=false; store("hs_unlocked",null); try{sessionStorage.removeItem("hs_unlocked");}catch(_){} location.hash="#today"; render(); break;
     case "check": setCheck(S.kidDate, b.dataset.id, b.dataset.s); break;
     case "carry": setCarry(b.dataset.date, b.dataset.id, b.dataset.s); break;
+    case "carryArm": S.carryArm = b.dataset.k || null; render(); break;
+    case "carryDelAll": dismissCarry(carriedItems(today())); break;
+    case "carryDelGroup": { const g = carryGroups()[+b.dataset.g]; if(g) dismissCarry(g.list); break; }
+    case "carryDelOne": dismissCarry(carriedItems(today()).filter(x=>x.date===b.dataset.date && x.item.id===b.dataset.id)); break;
     case "openFL": if(HasAndroid && window.Android.openFamilyLink) safe(()=>Android.openFamilyLink()); else toast("휴대폰의 Family Link 앱을 열어 보너스 시간을 주세요"); break;
     case "rewardGiven": saveDay(today(), d=>{ if(d.reward){ d.reward.given = true; d.reward.givenAt = new Date().toISOString(); } }); toast("보너스 준 것으로 표시했어요"); break;
     case "reason": setReason(S.kidDate, b.dataset.id, b.dataset.r); break;
@@ -1328,8 +1369,7 @@ function widgetStyle(){ const d = {mode:"list", theme:"light", hide:"0"}; const 
 function saveWidgetStyle(st){ if(!HasAndroid) return; safe(()=>Android.setWidgetStyle(st.mode, st.theme, st.hide==="1")); toast("위젯에 적용했어요"); render(); }
 let widgetTimer = null;
 function widgetPayload(){ const t = today(); const d = S.days[t] || {};
-  const carry = carriedItems(t).map(x=>({id:x.item.id, title:x.item.title, from: md(x.date), st:x.st}));
-  return JSON.stringify({sched: schedItems(), checksDate: t, checks: d.checks || {}, carry, reward: d.reward || null}); }
+  return JSON.stringify({sched: schedItems(), checksDate: t, checks: d.checks || {}, carryCount: carriedItems(t).length, reward: d.reward || null}); }
 function pushWidgetNow(){ if(!HasAndroid || !S.scheduleLoaded) return; safe(()=>Android.pushWidgetData(widgetPayload())); }
 function pushWidget(){ clearTimeout(widgetTimer); widgetTimer = setTimeout(pushWidgetNow, 800); }
 function widgetPanel(){
